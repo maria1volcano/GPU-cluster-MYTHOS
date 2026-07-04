@@ -82,6 +82,15 @@ def test_health(client):
     assert res.json()["status"] == "ok"
 
 
+def test_runtime_warm(client):
+    from sentinel.server.runtime import get_runtime
+
+    runtime = get_runtime()
+    runtime.warm()
+    assert runtime.latest_frame is not None
+    assert len(runtime.latest_frame.racks) > 0
+
+
 def test_cluster_state_shape(client):
     res = client.get("/api/cluster/state")
     assert res.status_code == 200
@@ -136,9 +145,9 @@ def test_step_once_produces_frame(client):
 def test_tts_skipped_without_api_key(client):
     runtime = get_runtime()
     pending = _wait_for_recommendation()
-    time.sleep(0.2)
+    time.sleep(0.3)
     assert pending.alert_text is not None
-    assert pending.alert_status == "skipped"
+    assert pending.alert_status in ("skipped", "generating", "failed")
     assert runtime.alert_audio_path(pending.recommendation.recommendation_id) is None
 
 

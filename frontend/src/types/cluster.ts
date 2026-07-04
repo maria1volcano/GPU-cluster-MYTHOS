@@ -42,6 +42,9 @@ export interface ClusterState {
   activeJobs: number;
   agentConfidencePct: number;
   racks: RackMetric[];
+  mapRacks?: RackMetric[];
+  dcgmSampleCount?: number;
+  dcgmThrottlingGpus?: number;
 }
 
 export interface AgentSignal {

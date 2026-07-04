@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
@@ -11,7 +12,14 @@ from pydantic import BaseModel
 
 from sentinel.server.runtime import get_runtime
 
-app = FastAPI(title="Sentinel API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_runtime().warm()
+    yield
+
+
+app = FastAPI(title="Sentinel API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +29,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,6 +96,16 @@ def get_alert_audio(recommendation_id: str):
 @app.get("/api/telemetry/events")
 def get_telemetry_events() -> List[Dict[str, Any]]:
     return get_runtime().telemetry_events()
+
+
+@app.get("/api/telemetry/dcgm/samples")
+def get_dcgm_samples(limit: int = 32) -> List[Dict[str, Any]]:
+    """Latest per-GPU DCGM-style samples from the replay frame."""
+    frame = get_runtime().latest_frame_dict()
+    if not frame:
+        return []
+    samples = frame.get("samples") or []
+    return samples[: max(1, min(limit, 128))]
 
 
 @app.post("/api/replay/start")

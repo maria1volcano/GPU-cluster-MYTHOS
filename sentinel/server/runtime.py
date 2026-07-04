@@ -19,6 +19,7 @@ from sentinel.learning import OverrideLearner
 from sentinel.models import Recommendation
 from sentinel.predict.engine import PredictionEngine
 from sentinel.predict.schema import Prediction, THERMAL_THROTTLE
+from sentinel.server.dcgm_events import events_from_frame
 from sentinel.server.mappers import (
     decision_entry_to_frontend,
     frame_to_cluster_state,
@@ -30,7 +31,7 @@ from sentinel.tts import AlertSpeaker, build_alert_text
 
 logger = logging.getLogger(__name__)
 
-MAX_EVENTS = 200
+MAX_EVENTS = 500
 STRESS_SEEK_T = 12_824_105  # queue peak in demo window
 
 
@@ -83,6 +84,14 @@ class ClusterRuntime:
         self._pending: Optional[PendingRecommendation] = None
         self._events: Deque[Dict[str, Any]] = deque(maxlen=MAX_EVENTS)
         self._ws_subscribers: List[deque] = []
+
+    def warm(self) -> None:
+        """Pre-seek the engine so the first dashboard fetch is fast."""
+        with self._lock:
+            if self.latest_frame is not None:
+                return
+            self.engine.seek(DEMO_WINDOW[0])
+            self.latest_frame = self.engine.tick()
 
     # --- lifecycle -----------------------------------------------------------
 
@@ -184,7 +193,7 @@ class ClusterRuntime:
 
     def telemetry_events(self) -> List[Dict[str, Any]]:
         with self._lock:
-            return list(self._events)
+            return list(reversed(self._events))
 
     def decision_log_entries(self) -> List[Dict[str, Any]]:
         entries = self.decision_log.read_all()
@@ -382,6 +391,12 @@ class ClusterRuntime:
         for sub in self._ws_subscribers:
             sub.append(evt)
 
+    def _emit_dcgm_events(self, frame: TelemetryFrame) -> None:
+        for evt in events_from_frame(frame):
+            self._events.append(evt)
+            for sub in self._ws_subscribers:
+                sub.append(evt)
+
     def _maybe_alert(self, frame: TelemetryFrame, preds: List[Prediction]) -> None:
         if self._pending is not None and self._pending.status == "pending":
             return
@@ -420,6 +435,7 @@ class ClusterRuntime:
             preds = self.predictor.on_frame(frame)
             self.latest_frame = frame
             self._maybe_alert(frame, preds)
+            self._emit_dcgm_events(frame)
             return frame
 
     def _replay_loop(self) -> None:
@@ -441,6 +457,7 @@ class ClusterRuntime:
                     preds = self.predictor.on_frame(frame)
                     self.latest_frame = frame
                     self._maybe_alert(frame, preds)
+                    self._emit_dcgm_events(frame)
                     frame_to_cluster_state(
                         frame,
                         self.replay_status,

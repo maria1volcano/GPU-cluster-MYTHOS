@@ -15,33 +15,68 @@ import {
 } from "./mockCluster";
 
 const USE_MOCKS = (import.meta.env.VITE_USE_MOCKS ?? "true") !== "false";
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "" : "http://localhost:8000");
+const FETCH_TIMEOUT_MS = 15_000;
 
 export const apiConfig = {
   mode: USE_MOCKS ? ("mock" as const) : ("live" as const),
-  baseUrl: API_BASE,
+  baseUrl: API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000"),
   lastFetch: null as string | null,
+  backendReachable: null as boolean | null,
 };
+
+async function fetchWithTimeout(path: string, init?: RequestInit): Promise<Response> {
+  const url = `${API_BASE}${path}`;
+  if (typeof window === "undefined") {
+    return fetch(url, init);
+  }
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 // --- live HTTP helpers -----------------------------------------------------
 // These throw on non-2xx so TanStack Query surfaces the error (retry / error
 // state) instead of us silently parsing an error body as data.
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetchWithTimeout(path);
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
+  apiConfig.backendReachable = true;
   return (await res.json()) as T;
 }
 
 async function post(path: string, body?: unknown): Promise<Response> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithTimeout(path, {
     method: "POST",
     ...(body !== undefined
       ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
       : {}),
   });
   if (!res.ok) throw new Error(`POST ${path} failed: ${res.status} ${res.statusText}`);
+  apiConfig.backendReachable = true;
   return res;
+}
+
+export async function pingBackend(): Promise<boolean> {
+  if (USE_MOCKS) {
+    apiConfig.backendReachable = true;
+    return true;
+  }
+  try {
+    const res = await fetchWithTimeout("/health");
+    apiConfig.backendReachable = res.ok;
+    return res.ok;
+  } catch {
+    apiConfig.backendReachable = false;
+    return false;
+  }
 }
 
 // --- cluster state ---------------------------------------------------------
@@ -62,10 +97,12 @@ export async function getClusterState(): Promise<ClusterState> {
 
 export async function fetchRecommendation(): Promise<AgentRecommendation | null> {
   if (USE_MOCKS) return getRecommendation();
-  const res = await fetch(`${API_BASE}/api/agent/recommendation`);
+  const res = await fetchWithTimeout("/api/agent/recommendation");
   // A missing recommendation is a normal state, not an error: the backend may
   // answer 404 / 204 / 200-with-null when nothing needs attention.
-  if (res.status === 204 || !res.ok) return null;
+  if (res.status === 204) return null;
+  if (!res.ok) return null;
+  apiConfig.backendReachable = true;
   const data = await res.json();
   return (data ?? null) as AgentRecommendation | null;
 }
@@ -139,10 +176,33 @@ export async function askWhy(recOrId: AgentRecommendation | string) {
 
 export async function fetchTelemetry(): Promise<TelemetryEvent[]> {
   if (USE_MOCKS) return getTelemetry();
-  const res = await fetch(`${API_BASE}/api/telemetry/events`);
+  const res = await fetchWithTimeout("/api/telemetry/events");
   if (!res.ok) return [];
+  apiConfig.backendReachable = true;
   const data = await res.json();
   return Array.isArray(data) ? data : (data.events ?? []);
+}
+
+export type DashboardData = {
+  state: ClusterState;
+  rec: AgentRecommendation | null;
+  events: TelemetryEvent[];
+};
+
+export async function fetchDashboard(): Promise<DashboardData> {
+  if (USE_MOCKS) {
+    const state = await getClusterState();
+    generateTelemetryFromState(state);
+    const rec = await fetchRecommendation();
+    const events = [...(await fetchTelemetry())];
+    return { state, rec, events };
+  }
+  const [state, rec, events] = await Promise.all([
+    getClusterState(),
+    fetchRecommendation(),
+    fetchTelemetry(),
+  ]);
+  return { state, rec, events: [...events] };
 }
 
 /** @deprecated mock-only synchronous read — use {@link fetchTelemetry} for live mode. */

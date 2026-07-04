@@ -61,6 +61,38 @@ def _rack_position(index: int, cols: int = 7) -> Dict[str, float]:
     return {"x": float(col - cols // 2), "y": 0.0, "z": float(row - 2)}
 
 
+# 8-rack operator floor layout (matches mock dashboard spacing).
+_MAP_FLOOR_LAYOUT = [
+    {"x": -3.0, "z": -1.5},
+    {"x": -1.0, "z": -1.5},
+    {"x": 1.0, "z": -1.5},
+    {"x": 3.0, "z": -1.5},
+    {"x": -3.0, "z": 1.5},
+    {"x": -1.0, "z": 1.5},
+    {"x": 1.0, "z": 1.5},
+    {"x": 3.0, "z": 1.5},
+]
+
+
+def select_map_racks(racks_out: List[Dict[str, Any]], limit: int = 8) -> List[Dict[str, Any]]:
+    """Top racks by risk for the 3D floor — stable sort, fixed layout."""
+    ranked = sorted(
+        racks_out,
+        key=lambda r: (-r["riskScore"], -r["gpuUtilizationPct"], r["id"]),
+    )[:limit]
+    mapped: List[Dict[str, Any]] = []
+    for i, rack in enumerate(ranked):
+        slot = _MAP_FLOOR_LAYOUT[i] if i < len(_MAP_FLOOR_LAYOUT) else {"x": 0.0, "z": 0.0}
+        mapped.append(
+            {
+                **rack,
+                "position": {"x": slot["x"], "y": 0.0, "z": slot["z"]},
+                "label": rack.get("label") or rack["id"].replace("-", " ").title(),
+            }
+        )
+    return mapped
+
+
 def _slope_for_rack(rack_id: str, trends: Optional[Dict]) -> float:
     if not trends:
         return 0.0
@@ -150,6 +182,9 @@ def frame_to_cluster_state(
         "activeJobs": active,
         "agentConfidencePct": 78,
         "racks": racks_out,
+        "mapRacks": select_map_racks(racks_out),
+        "dcgmSampleCount": len(frame.samples),
+        "dcgmThrottlingGpus": sum(1 for s in frame.samples if s.throttle_reasons),
     }
 
 

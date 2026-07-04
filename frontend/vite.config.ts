@@ -6,10 +6,20 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Leave VITE_API_BASE_URL empty in dev to route /api/* through the Vite proxy (vite.config.ts).
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+  },
+  vite: {
+    server: {
+      proxy: {
+        "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/health": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/stream": { target: "ws://127.0.0.1:8000", ws: true },
+      },
+    },
   },
 });

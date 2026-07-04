@@ -4,6 +4,8 @@ import { innerGlassPanel, glassPanel } from "@/lib/glassStyles";
 import { Radio } from "lucide-react";
 
 export function TelemetryFeed({ events }: { events: TelemetryEvent[] }) {
+  const newestId = events[0]?.id;
+
   return (
     <div className={`flex h-full flex-col ${glassPanel}`}>
       <div className="flex items-center justify-between border-b border-line px-5 py-3">
@@ -26,7 +28,9 @@ export function TelemetryFeed({ events }: { events: TelemetryEvent[] }) {
         {events.map((e) => (
           <div
             key={e.id}
-            className={`flex items-start gap-3 rounded-sm px-3 py-2 text-xs animate-in fade-in slide-in-from-top-1 ${innerGlassPanel}`}
+            className={`flex items-start gap-3 rounded-sm px-3 py-2 text-xs ${innerGlassPanel} ${
+              e.id === newestId ? "animate-in fade-in slide-in-from-top-1 duration-300" : ""
+            }`}
           >
             <span
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"

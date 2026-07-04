@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
@@ -32,13 +32,14 @@ import { riskColorHex, riskLabel } from "@/lib/riskStyles";
 
 import {
   acceptRecommendation,
+  apiConfig,
   askWhy,
-  fetchRecommendation,
-  fetchTelemetry,
-  getClusterState,
+  fetchDashboard as loadDashboard,
   overrideRecommendation,
+  pauseReplay,
+  startReplay,
+  triggerStressScenario,
 } from "@/lib/api";
-import { triggerStressScenario } from "@/lib/api";
 import { useRecommendationAlert } from "@/lib/alertAudio";
 import type {
   AgentRecommendation,
@@ -66,41 +67,51 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-type DashboardData = {
-  state: ClusterState;
-  rec: AgentRecommendation | null;
-  events: TelemetryEvent[];
-};
-
-// One combined fetch keeps the mock ordering intact: advancing the simulation
-// (getClusterState) must run before the recommendation and telemetry are read.
-async function fetchDashboard(): Promise<DashboardData> {
-  const state = await getClusterState();
-  const rec = await fetchRecommendation();
-  const events = [...(await fetchTelemetry())];
-  return { state, rec, events };
-}
-
 function Dashboard() {
   const queryClient = useQueryClient();
   const [selectedRackId, setSelectedRackId] = useState<string | undefined>();
   const [running, setRunning] = useState(true);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const replayBooted = useRef(false);
 
-  const { data, isPending } = useQuery({
+  const { data, isPending, isFetching, isError, error } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: fetchDashboard,
+    queryFn: loadDashboard,
+    enabled: typeof window !== "undefined",
     refetchInterval: running ? 1500 : false,
     refetchOnWindowFocus: false,
+    retry: 2,
+    staleTime: 500,
   });
   const state = data?.state ?? null;
   const rec = data?.rec ?? null;
   const events = data?.events ?? [];
+  const loading = !state && (isPending || isFetching);
 
   useRecommendationAlert(rec);
 
+  useEffect(() => {
+    if (apiConfig.mode !== "live" || replayBooted.current) return;
+    replayBooted.current = true;
+    startReplay().catch((err) => console.warn("Failed to start backend replay", err));
+  }, []);
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+
+  const handleToggleRunning = async () => {
+    const next = !running;
+    if (apiConfig.mode === "live") {
+      try {
+        if (next) await startReplay();
+        else await pauseReplay();
+      } catch (err) {
+        console.warn("Replay control failed", err);
+        return;
+      }
+    }
+    setRunning(next);
+  };
 
   const acceptMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => acceptRecommendation(r),
@@ -157,14 +168,21 @@ function Dashboard() {
       <BackgroundLayer />
 
       <div className="mx-auto max-w-[1440px] px-6 py-7 lg:px-10 lg:py-8">
+        {isError && (
+          <div className="mb-4 rounded-sm border border-crit/40 bg-crit/10 px-4 py-3 text-sm text-crit">
+            Live backend unreachable — start it with{" "}
+            <code className="font-mono text-xs">python -m sentinel.server</code>
+            {error instanceof Error ? `: ${error.message}` : ""}
+          </div>
+        )}
         <HeroSection
           running={running}
-          onToggleRunning={() => setRunning((r) => !r)}
+          onToggleRunning={() => void handleToggleRunning()}
           onStress={startStress}
           onViewLogic={handleViewPredictionLogic}
           rec={rec}
           topRack={topRack}
-          loading={isPending}
+          loading={loading}
         />
 
         <WhyItMatters />
@@ -192,13 +210,13 @@ function Dashboard() {
             label="Total racks"
             value={state?.racks.length ?? 0}
             icon={Cpu}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Active jobs"
             value={state?.activeJobs ?? 0}
             icon={Activity}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Avg temperature"
@@ -207,14 +225,14 @@ function Dashboard() {
             suffix="°C"
             icon={Thermometer}
             tone={state && state.averageTemperatureC > 75 ? "warning" : "default"}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Power draw"
             value={state?.totalPowerDrawKw ?? 0}
             suffix=" kW"
             icon={Zap}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Cooling avg"
@@ -222,7 +240,7 @@ function Dashboard() {
             suffix="%"
             icon={Wind}
             tone={state && state.averageCoolingEfficiencyPct < 70 ? "warning" : "good"}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Throttling risks"
@@ -233,7 +251,7 @@ function Dashboard() {
             icon={ShieldAlert}
             tone={rec?.riskLevel === "critical" ? "critical" : "default"}
             hint="racks needing attention"
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Agent confidence"
@@ -241,7 +259,7 @@ function Dashboard() {
             suffix="%"
             icon={Sparkles}
             tone="good"
-            loading={isPending}
+            loading={loading}
           />
         </section>
 
@@ -255,7 +273,7 @@ function Dashboard() {
                 hint="8-rack GPU floor"
               />
               <RackMap3D
-                racks={state?.racks ?? []}
+                racks={state?.mapRacks ?? state?.racks.slice(0, 8) ?? []}
                 selectedId={selectedRackId}
                 onSelect={setSelectedRackId}
               />
