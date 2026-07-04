@@ -206,6 +206,24 @@ GET  /api/decision-log
 
 If present, `INTEGRATION.md` should define the exact request and response shapes, frontend/backend responsibilities, mock behavior, and demo fallback plan.
 
+## Backend Data Layer (M0–M2, `sentinel/`)
+
+The data ingestion, stream replay, and telemetry foundation lives in the `sentinel/` Python package (stdlib only, Python 3.9+). It replays the real Alibaba openb trace event-time and synthesizes DCGM-style telemetry from the real `gpu_milli` load, so throttling emerges from real data rather than a script.
+
+Contracts for the prediction, agent, and dashboard layers are frozen in [CONTRACTS.md](./CONTRACTS.md), with real sample frames in [`fixtures/`](./fixtures/) — frontend and prediction can build against those today.
+
+Verification gates (each recomputes and asserts the real trace numbers):
+
+```bash
+python3 -m sentinel.data.stats        # M0: CSVs match PRD §2 (31 checks)
+python3 -m sentinel.data.racks        # rack derivation: 42 model-homogeneous racks
+python3 -m sentinel.replay.replayer   # M1: full-trace replay dynamics
+python3 -m sentinel.engine            # M2: demo-window heat + migration counterfactual
+python3 -m sentinel.telemetry.fixture # regenerate contract fixtures (deterministic)
+```
+
+Demo window and all tuning knobs (seed, tick, speedup, thermal constants) are centralized in `sentinel/config.py`.
+
 ## Core UI States
 
 - **Idle**: The cluster replay has not started yet.
