@@ -39,6 +39,11 @@ LEAD_TIME_S = 480          # alert when predicted time-to-throttle < this
 # (num_gpu >= 2, or a whole-GPU request). DESIGN §2.4 "heavy jobs queued".
 HEAVY_GPU_DEMAND = 1.0
 
+# Optional placement guardrail: defer racks at >= this fraction of GPU capacity
+# unless nothing else fits (spreads the map across 2+ racks if the demo wants
+# it). None = pure busiest-rack-first packing.
+RACK_FILL_CAP = None
+
 # --- Telemetry model (DESIGN §2.3) --------------------------------------------
 TEMP_TAU_S = 300.0         # thermal time constant; alpha = 1 - exp(-tick/tau)
 RACK_COUPLING_C = 6.0      # max °C added to a GPU's target temp by a fully-busy rack
