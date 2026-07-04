@@ -28,3 +28,4 @@ env/
 decision_log.jsonl
 sentinel_state.json
 alert.wav
+.worktrees/
