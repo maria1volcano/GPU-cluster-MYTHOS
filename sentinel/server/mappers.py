@@ -102,19 +102,27 @@ def _slope_for_rack(rack_id: str, trends: Optional[Dict]) -> float:
     return getattr(trend, "slope_c_per_s", 0.0) * 60.0
 
 
+def _primary_job_on_rack(rack_id: str, pod_rack: Optional[Dict[str, str]]) -> Optional[str]:
+    if not pod_rack:
+        return None
+    jobs = sorted(p for p, rid in pod_rack.items() if rid == rack_id)
+    return jobs[0] if jobs else None
+
+
 def frame_to_cluster_state(
     frame: TelemetryFrame,
     replay_status: str,
     trends: Optional[Dict] = None,
     history: Optional[Dict[str, List[Dict]]] = None,
+    pod_rack: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     racks_out: List[Dict[str, Any]] = []
     for i, rack in enumerate(frame.racks):
         prof = PROFILES.get(rack.gpu_model) if rack.gpu_model else None
         throttle = prof.throttle_temp if prof else 84.0
-        util_pct = rack.util * 100.0
+        util_pct = max(0.0, min(100.0, rack.util * 100.0))
         trend = _slope_for_rack(rack.rack_id, trends)
-        power_kw = rack.power_w_total / 1000.0
+        power_kw = max(0.1, rack.power_w_total / 1000.0)
         queue_pct = min(98.0, rack.queued_heavy * 12.0 + rack.queued_pods * 4.0)
         cooling = _cooling_efficiency(
             rack.temp_c_mean_active, throttle, rack.throttling_gpus, max(1, rack.active_gpus)
@@ -146,7 +154,7 @@ def frame_to_cluster_state(
                 "gpuUtilizationPct": round(util_pct, 1),
                 "coolingEfficiencyPct": round(cooling, 1),
                 "queuePressurePct": round(queue_pct, 1),
-                "activeJobId": None,
+                "activeJobId": _primary_job_on_rack(rack.rack_id, pod_rack),
                 "workloadType": "training" if rack.gpu_demand > 1 else ("inference" if rack.gpu_demand > 0 else "idle"),
                 "riskScore": risk_score,
                 "riskLevel": _risk_level(risk_score),

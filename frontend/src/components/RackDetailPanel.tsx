@@ -1,5 +1,6 @@
 import type { RackMetric } from "@/types/cluster";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
+import { formatPercent, formatPowerKw, formatTemperatureC } from "@/lib/formatMetric";
 import { innerGlassPanel, glassPanel } from "@/lib/glassStyles";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { Cpu, Thermometer, Wind, Zap, Activity, X } from "lucide-react";
@@ -56,32 +57,36 @@ export function RackDetailPanel({
         <MiniStat
           icon={<Thermometer className="h-3.5 w-3.5" />}
           label="Temperature"
-          value={`${rack.temperatureC.toFixed(1)}°C`}
+          value={formatTemperatureC(rack.temperatureC)}
         />
         <MiniStat
           icon={<Activity className="h-3.5 w-3.5" />}
           label="Trend"
-          value={`${rack.temperatureTrendCPerMin >= 0 ? "+" : ""}${rack.temperatureTrendCPerMin.toFixed(1)}°C/min`}
+          value={
+            rack.temperatureTrendCPerMin == null || Number.isNaN(rack.temperatureTrendCPerMin)
+              ? "—"
+              : `${rack.temperatureTrendCPerMin >= 0 ? "+" : ""}${rack.temperatureTrendCPerMin.toFixed(1)}°C/min`
+          }
         />
         <MiniStat
           icon={<Zap className="h-3.5 w-3.5" />}
           label="Power"
-          value={`${rack.powerDrawKw.toFixed(0)} kW`}
+          value={formatPowerKw(rack.powerDrawKw)}
         />
         <MiniStat
           icon={<Cpu className="h-3.5 w-3.5" />}
           label="GPU util"
-          value={`${rack.gpuUtilizationPct.toFixed(0)}%`}
+          value={formatPercent(rack.gpuUtilizationPct)}
         />
         <MiniStat
           icon={<Wind className="h-3.5 w-3.5" />}
           label="Cooling"
-          value={`${rack.coolingEfficiencyPct.toFixed(0)}%`}
+          value={formatPercent(rack.coolingEfficiencyPct)}
         />
         <MiniStat
           icon={<Activity className="h-3.5 w-3.5" />}
           label="Queue"
-          value={`${rack.queuePressurePct.toFixed(0)}%`}
+          value={formatPercent(rack.queuePressurePct)}
         />
       </div>
 

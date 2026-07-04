@@ -98,8 +98,24 @@ def test_cluster_state_shape(client):
     body = res.json()
     assert "racks" in body
     assert len(body["racks"]) > 0
+    rack = body["racks"][0]
+    for key in (
+        "temperatureC",
+        "powerDrawKw",
+        "gpuUtilizationPct",
+        "coolingEfficiencyPct",
+        "queuePressurePct",
+    ):
+        assert key in rack
+        assert rack[key] is not None
     assert "averageTemperatureC" in body
     assert "timestamp" in body
+    assert "mapRacks" in body
+    assert len(body["mapRacks"]) <= 8
+    for mr in body["mapRacks"]:
+        assert mr["temperatureC"] is not None
+        assert mr["powerDrawKw"] is not None
+        assert mr["gpuUtilizationPct"] is not None
 
 
 def test_recommendation_empty_initially(client):
@@ -160,7 +176,9 @@ def test_tts_e2e_generates_alert_audio(tts_client):
     speaker.wait()
     assert speaker.calls == [rec_id]
     assert pending.alert_text
-    assert pending.recommendation.justification in pending.alert_text
+    from sentinel.tts import _sanitize_for_speech
+
+    assert _sanitize_for_speech(pending.recommendation.justification) in pending.alert_text
 
     rec = client.get("/api/agent/recommendation").json()
     assert rec["alertStatus"] == "ready"

@@ -171,6 +171,7 @@ class ClusterRuntime:
                 status,
                 trends=self.predictor._trends,
                 history=self._history,
+                pod_rack=self.engine.replayer.state.pod_rack,
             )
 
     def current_recommendation(self) -> Optional[Dict[str, Any]]:
@@ -533,6 +534,7 @@ class ClusterRuntime:
                         self.replay_status,
                         trends=self.predictor._trends,
                         history=self._history,
+                        pod_rack=self.engine.replayer.state.pod_rack,
                     )
                 time.sleep(TICK_TRACE_S / SPEEDUP)
         except Exception:
