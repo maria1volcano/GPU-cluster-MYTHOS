@@ -14,25 +14,27 @@ One frame = one tick of cluster truth. **Transport-agnostic:** the identical JSO
 - pushed over `WS /stream` (DESIGN §4), interleaved with `"prediction"` (M3) and `"kpi"` (M6) frames — demux on `type`;
 - returned by `GET /api/cluster/state` (latest frame) for the REST/mock-mode path the frontend README describes.
 
+All example values below are copied verbatim from `fixtures/telemetry_frame.golden.json` (tick 137 of the demo window — the queue-peak moment).
+
 ```jsonc
 {
   "type": "telemetry",        // frame demux key: "telemetry" | "prediction" | "kpi"
   "v": 1,                     // schema version
   "tick": 137,                // tick counter since window start
-  "t": 12824110,              // trace-seconds (event time, NOT wall clock)
-  "trace_day": 148.427,
+  "t": 12824140,              // trace-seconds (event time, NOT wall clock)
+  "trace_day": 148.428,
   "samples": [ GpuTelemetrySample, ... ],   // sorted by gpu_id — ONLY interesting GPUs, see §2
   "racks":   [ RackAggregate, ... ],        // ALWAYS all 42 racks, rack index order
   "queue":   [ QueuedPodInfo, ... ],        // pending pods, creation order
   "cluster": {
-    "active_pods": 51,        // scheduled & not yet deleted (GPU + CPU pods)
-    "pending_pods": 7,        // created, not scheduled, not deleted
-    "pending_heavy": 6,       // pending pods with gpu_demand >= 1.0
-    "gpu_demand": 114.6,      // GPU-equivalents currently placed cluster-wide
+    "active_pods": 44,        // scheduled & not yet deleted (GPU + CPU pods)
+    "pending_pods": 8,        // created, not scheduled, not deleted
+    "pending_heavy": 8,       // pending pods with gpu_demand >= 1.0
+    "gpu_demand": 48.68,      // GPU-equivalents currently placed cluster-wide
     "capacity_gpus": 6212,
-    "active_gpus": 121,       // GPUs with any load
-    "throttling_gpus": 3,     // GPUs with capped clocks right now
-    "events_applied": 16204   // cumulative replay events since window start
+    "active_gpus": 49,        // GPUs with any load
+    "throttling_gpus": 45,    // GPUs with capped clocks right now
+    "events_applied": 108     // replay events applied since window start
   }
 }
 ```
@@ -43,20 +45,20 @@ Cadence: 1 tick = `TICK_TRACE_S` (30) trace-seconds. Wall pacing = `TICK_TRACE_S
 
 ```json
 {
-  "gpu_id": "openb-node-0233/gpu-3",
-  "node_sn": "openb-node-0233",
-  "rack_id": "rack-07",
+  "gpu_id": "openb-node-0026/gpu-0",
+  "node_sn": "openb-node-0026",
+  "rack_id": "rack-00",
   "model": "G2",
-  "t": 12824110,
-  "util": 0.94,
-  "temp_c": 81.5,
-  "power_w": 292.0,
-  "sm_clock_mhz": 1230,
+  "t": 12824140,
+  "util": 1.0,
+  "temp_c": 85.7,
+  "power_w": 300.0,
+  "sm_clock_mhz": 1364,
   "mem_clock_mhz": 877,
-  "mem_used_mib": 27853,
-  "throttle_reasons": ["SW_THERMAL"],
+  "mem_used_mib": 13926,
+  "throttle_reasons": ["SW_THERMAL", "SW_POWER_CAP"],
   "xid_errors": 0,
-  "ecc_errors": {"volatile": 0, "aggregate": 3}
+  "ecc_errors": {"volatile": 0, "aggregate": 0}
 }
 ```
 
@@ -72,20 +74,20 @@ Per-model constants (idle/throttle temps, TDP, base clocks): `sentinel/telemetry
 
 ```json
 {
-  "rack_id": "rack-07",
+  "rack_id": "rack-00",
   "gpu_model": "G2",
   "num_nodes": 32,
   "capacity_gpus": 256,
-  "gpu_demand": 98.47,
-  "util": 0.3846,
-  "active_gpus": 104,
-  "temp_c_mean_active": 79.8,
-  "temp_c_max": 85.2,
-  "power_w_total": 31240.5,
-  "throttling_gpus": 2,
-  "active_pods": 38,
-  "queued_pods": 6,
-  "queued_heavy": 6
+  "gpu_demand": 48.68,
+  "util": 0.1902,
+  "active_gpus": 49,
+  "temp_c_mean_active": 84.0,
+  "temp_c_max": 86.0,
+  "power_w_total": 23273.2,
+  "throttling_gpus": 45,
+  "active_pods": 42,
+  "queued_pods": 8,
+  "queued_heavy": 8
 }
 ```
 
@@ -98,14 +100,14 @@ Per-model constants (idle/throttle temps, TDP, base clocks): `sentinel/telemetry
 
 ```json
 {
-  "name": "openb-pod-7712",
-  "num_gpu": 8,
+  "name": "openb-pod-7671",
+  "num_gpu": 1,
   "gpu_milli": 1000,
-  "gpu_demand": 8.0,
-  "qos": "BE",
+  "gpu_demand": 1.0,
+  "qos": "LS",
   "heavy": true,
-  "waiting_s": 312,
-  "target_rack": "rack-07"
+  "waiting_s": 132,
+  "target_rack": "rack-00"
 }
 ```
 
@@ -115,10 +117,10 @@ Per-model constants (idle/throttle temps, TDP, base clocks): `sentinel/telemetry
 
 | Interface | Signature | Notes |
 |---|---|---|
-| Tick hook (→ M3) | `Engine.run(window, on_tick=cb)` calls `cb(t, state, frame)` | `frame` is the `TelemetryFrame`; `state` is the live `ClusterState` (placements, queue) for anything not in the frame |
-| Telemetry seam | `TelemetrySource.sample(gpu_id, t) -> GpuTelemetrySample` | `SimTelemetrySource` now; `DcgmTelemetrySource` (stub, field mapping documented) swaps in later with zero prediction changes |
-| Operator action (M5/M6 → replayer) | `Replayer.apply_action("MIGRATE_JOB", job_id, to_rack)` | Frees the job's current placement (or dequeues it if pending) and places it on `to_rack`; both racks' load and telemetry shift from the next tick |
-| Replay controls | `Engine.seek(t)`, `Engine.tick()`, `DEMO_WINDOW` in `sentinel/config.py` | `seek` warm-starts: state is fast-forwarded and temperatures initialize at steady-state for the load at `t` |
+| Tick loop (→ M3/M5) | `for frame in engine.run(window):` — yields one `TelemetryFrame` per tick. Callback form: `engine.run(window, on_tick=cb)` calls `cb(t, state, frame)` eagerly | `frame` is the `TelemetryFrame`; `state` is the live `ClusterState` (placements, queue) for anything not in the frame |
+| Telemetry seam | `TelemetrySource.sample(gpu_id, t) -> GpuTelemetrySample` | Returns the sample as of the last completed tick (its `.t` says when). `SimTelemetrySource` now; `DcgmTelemetrySource` (stub, field mapping documented) swaps in later with zero prediction changes |
+| Operator action (M5/M6 → replayer) | `Engine.apply_action("MIGRATE_JOB", job_id, to_rack) -> bool` | Guardrail seam: ANY invalid input (unknown job/rack, finished job, target without capacity) returns `False` — it never raises. On success the job (queued or running) is placed on `to_rack` and both racks shift from the next tick |
+| Replay controls | `Engine.seek(t)`, `Engine.tick()`, `DEMO_WINDOW` in `sentinel/config.py` | `seek` warm-starts deterministically: state fast-forwards to `t − 30min`, temperatures initialize by actual load age, then real events replay to `t` so thermal state is fully evolved |
 
 ## 6. Determinism guarantee
 

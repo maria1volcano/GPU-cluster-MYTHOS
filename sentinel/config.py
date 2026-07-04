@@ -50,6 +50,9 @@ RACK_FILL_CAP = None
 # only node/rack thermal coupling (dense packing of real heavy jobs) pushes it
 # over the line. Throttling is an emergent crowding effect, not scripted.
 TEMP_TAU_S = 300.0         # thermal time constant; alpha = 1 - exp(-tick/tau)
+BURN_IN_S = 1800           # seek pre-roll (6*tau): real events evolve thermal
+                           # state to the window start, erasing warm-start
+                           # approximation (shared-GPU ages, cooling GPUs)
 NODE_COUPLING_C = 5.0      # max °C from a fully-loaded node (same enclosure)
 RACK_COUPLING_C = 6.0      # max °C from a fully-loaded rack (shared airflow)
 UTIL_NOISE = 0.02          # +/- uniform noise on util (seeded, reproducible)

@@ -1,6 +1,8 @@
 """SimTelemetrySource — synthesized DCGM telemetry as a function of REAL load.
 
-Per tick, for every GPU with load (plus GPUs still cooling):
+Per tick, for every GPU with load (plus GPUs still cooling — these relax
+toward model idle; ambient coupling applies only under load, which keeps
+idle GPUs out of the sparse frame by design):
   util   = clamp(placed gpu_milli/1000 + seeded noise, 0, 1)
   target = idle + (util_temp_max - idle)*util
            + NODE_COUPLING_C * node_load_fraction     (same-enclosure heating)
@@ -90,8 +92,10 @@ class SimTelemetrySource(TelemetrySource):
 
     # --- per-tick batch ------------------------------------------------------
     def step(self, t: int, state: ClusterState) -> list:
-        """Advance to time t; return samples for all interesting GPUs."""
-        dt = max(t - self.t, 1)
+        """Advance to time t; return samples for all interesting GPUs.
+        dt == 0 (same-instant re-step) is a pure emission: alpha = 0 leaves
+        temps untouched and the event weight is 0, so nothing can re-fire."""
+        dt = max(t - self.t, 0)
         self.t = t
         alpha = 1.0 - math.exp(-dt / TEMP_TAU_S)
         node_load = self._node_loads(state)
@@ -121,7 +125,11 @@ class SimTelemetrySource(TelemetrySource):
                 if temp >= prof.throttle_temp + 3.0:
                     reasons.append("HW_THERMAL")
             if power >= prof.tdp_w * 0.99:
+                # A power cap really caps clocks — keeps the frozen contract
+                # invariant: throttle_reasons non-empty <=> sm_clock < base.
                 reasons.append("SW_POWER_CAP")
+                power = min(power, prof.tdp_w)
+                sm_clock = min(sm_clock, int(prof.base_sm_mhz * 0.97))
 
             xid = ecc_v = 0
             if load > 0:
@@ -162,17 +170,23 @@ class SimTelemetrySource(TelemetrySource):
             age = max(t - state.load_changed_t.get(g, t), 0)
             progress = 1.0 - math.exp(-age / TEMP_TAU_S)
             self._temps[g] = prof.idle_temp + (target - prof.idle_temp) * progress
+        # dt == 0 emission: populates _last (so sample() is honest immediately)
+        # without moving temps or drawing any XID/ECC events.
+        self.step(t, state)
 
     # --- TelemetrySource interface (DESIGN §2.3 / §4) --------------------------
     def sample(self, gpu_id: str, t: int) -> GpuTelemetrySample:
+        """Sample as of the last completed tick. `t` is advisory — the returned
+        sample's own `.t` says when it was computed. A GPU absent from the last
+        tick is genuinely idle at its last known (or ambient) temperature."""
         got = self._last.get(gpu_id)
-        if got is not None and got.t == t:
+        if got is not None:
             return got
         node = self._node_of[gpu_id]
         prof = self._profile_of[gpu_id]
         return GpuTelemetrySample(
             gpu_id=gpu_id, node_sn=node.sn, rack_id=self.topology.rack_of[node.sn],
-            model=node.model, t=t, util=0.0,
+            model=node.model, t=self.t, util=0.0,
             temp_c=self._temps.get(gpu_id, prof.idle_temp),
             power_w=prof.idle_w, sm_clock_mhz=prof.base_sm_mhz,
             mem_clock_mhz=prof.mem_clock_mhz, mem_used_mib=0,

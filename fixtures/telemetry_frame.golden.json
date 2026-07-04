@@ -98,7 +98,7 @@
       "util": 1.0,
       "temp_c": 75.5,
       "power_w": 300.0,
-      "sm_clock_mhz": 1530,
+      "sm_clock_mhz": 1484,
       "mem_clock_mhz": 877,
       "mem_used_mib": 13926,
       "throttle_reasons": [
@@ -329,7 +329,7 @@
       "util": 1.0,
       "temp_c": 83.8,
       "power_w": 300.0,
-      "sm_clock_mhz": 1530,
+      "sm_clock_mhz": 1484,
       "mem_clock_mhz": 877,
       "mem_used_mib": 13926,
       "throttle_reasons": [
@@ -496,7 +496,7 @@
       "util": 1.0,
       "temp_c": 60.4,
       "power_w": 300.0,
-      "sm_clock_mhz": 1530,
+      "sm_clock_mhz": 1484,
       "mem_clock_mhz": 877,
       "mem_used_mib": 13926,
       "throttle_reasons": [
@@ -692,7 +692,7 @@
       "util": 1.0,
       "temp_c": 56.1,
       "power_w": 300.0,
-      "sm_clock_mhz": 1530,
+      "sm_clock_mhz": 1484,
       "mem_clock_mhz": 877,
       "mem_used_mib": 13926,
       "throttle_reasons": [
@@ -713,7 +713,7 @@
       "util": 1.0,
       "temp_c": 82.4,
       "power_w": 300.0,
-      "sm_clock_mhz": 1530,
+      "sm_clock_mhz": 1484,
       "mem_clock_mhz": 877,
       "mem_used_mib": 13926,
       "throttle_reasons": [
@@ -734,7 +734,7 @@
       "util": 1.0,
       "temp_c": 82.5,
       "power_w": 300.0,
-      "sm_clock_mhz": 1530,
+      "sm_clock_mhz": 1484,
       "mem_clock_mhz": 877,
       "mem_used_mib": 13926,
       "throttle_reasons": [
@@ -765,7 +765,7 @@
       "xid_errors": 0,
       "ecc_errors": {
         "volatile": 0,
-        "aggregate": 0
+        "aggregate": 1
       }
     },
     {
@@ -1862,6 +1862,6 @@
     "capacity_gpus": 6212,
     "active_gpus": 49,
     "throttling_gpus": 45,
-    "events_applied": 22132
+    "events_applied": 108
   }
 }

@@ -43,6 +43,7 @@ class Replayer:
         self._idx = 0
         self.events_applied = 0
         self.unplaceable: list = []
+        self._apply_until(0)  # t==0 events apply, so reset() == seek(0) exactly
 
     # --- clock -------------------------------------------------------------
     def seek(self, t: int) -> None:
@@ -86,20 +87,32 @@ class Replayer:
 
     # --- operator action (DESIGN §4: Backend -> Replayer) ---------------------
     def apply_action(self, action: str, job_id: str, to_rack: str) -> bool:
+        """Guardrail seam for agent/operator actions: every invalid input
+        (unknown action aside) returns False, never raises."""
         if action != MIGRATE_JOB:
             raise ValueError(f"unknown action: {action}")
         pod = self.pods.get(job_id)
         if pod is None or not pod.is_gpu_pod:
             return False
+        if to_rack not in self.topology.rack_by_id:
+            return False  # unknown/hallucinated rack id
+        if job_id in self.state.pending:
+            assignments = self.placement.choose_in_rack(pod, to_rack)
+            if assignments is None:
+                return False  # target lacks capacity
+            self.state.dequeue(job_id)
+            self.state.place(pod, assignments, self.t)
+            return True
+        old = self.state.placements.get(job_id)
+        if old is None:
+            return False  # job not live (already finished)
+        # Free first so the pod's own slots count as capacity (a same-rack
+        # rebalance on a full rack must not be rejected); roll back on failure.
+        self.state.free(job_id, self.t)
         assignments = self.placement.choose_in_rack(pod, to_rack)
         if assignments is None:
-            return False  # target lacks capacity — guardrail for the agent layer
-        was_somewhere = self.state.free(job_id, self.t)
-        was_pending = self.state.dequeue(job_id) is not None
-        if not (was_somewhere or was_pending):
-            return False  # job not live (already finished)
-        # Recompute in case freeing its own old slot changed the tightest fit.
-        assignments = self.placement.choose_in_rack(pod, to_rack)
+            self.state.place(pod, old, self.t)
+            return False
         self.state.place(pod, assignments, self.t)
         return True
 
@@ -139,6 +152,9 @@ def main() -> int:
     r3 = Replayer(topology, pods)
     r3.seek(12_824_105)
     checks.append(("seek determinism", r2.state.snapshot_key() == r3.state.snapshot_key(), True))
+    checks.append(("apply_action guardrails (unknown rack / unknown job -> False, no crash)",
+                   (r2.apply_action(MIGRATE_JOB, "openb-pod-0001", "rack-999"),
+                    r2.apply_action(MIGRATE_JOB, "no-such-pod", "rack-01")), (False, False)))
     demand = r2.state.total_demand_milli / 1000
     checks.append(("demand at queue peak plausible (40..130 GPU-eq)", 40 <= demand <= 130, True))
     top = max(r2.state.rack_demand_milli.items(), key=lambda kv: kv[1])

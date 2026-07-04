@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sentinel.config import DEMO_WINDOW, SEED, TICK_TRACE_S
+from sentinel.config import BURN_IN_S, DEMO_WINDOW, SEED, TICK_TRACE_S
 from sentinel.telemetry.aggregate import build_frame
 from sentinel.telemetry.sample import TelemetryFrame
 from sentinel.telemetry.sim import SimTelemetrySource
@@ -35,26 +35,49 @@ class Engine:
         self.replayer = Replayer(topology, pods)
         self.sim = SimTelemetrySource(topology, seed)
         self.tick_no = 0
+        self._events_base = 0
 
     @property
     def t(self) -> int:
         return self.replayer.t
 
     def seek(self, t: int) -> None:
-        self.replayer.seek(t)
-        self.sim.warm_start(t, self.replayer.state)
+        """Deterministic warm seek: fast-forward state to t - BURN_IN_S,
+        age-initialize temperatures, then replay real events up to t so the
+        thermal state at t is fully evolved, not approximated."""
+        burn_start = max(t - BURN_IN_S, 0)
+        self.replayer.seek(burn_start)
+        self.sim.warm_start(burn_start, self.replayer.state)
+        while self.replayer.t < t:
+            state = self.replayer.step(min(TICK_TRACE_S, t - self.replayer.t))
+            self.sim.step(self.replayer.t, state)
+        self._events_base = self.replayer.events_applied
         self.tick_no = 0
 
     def tick(self, dt: int = TICK_TRACE_S) -> TelemetryFrame:
         state = self.replayer.step(dt)
         samples = self.sim.step(self.replayer.t, state)
         frame = build_frame(self.tick_no, self.replayer.t, state, samples,
-                            self.replayer.placement, self.replayer.events_applied)
+                            self.replayer.placement,
+                            self.replayer.events_applied - self._events_base)
         self.tick_no += 1
         return frame
 
-    def run(self, window: tuple = DEMO_WINDOW, dt: int = TICK_TRACE_S):
-        """Seek to window start, then yield one frame per tick to window end."""
+    def run(self, window: tuple = DEMO_WINDOW, dt: int = TICK_TRACE_S, on_tick=None):
+        """Seek to window start, then produce one frame per tick to window end.
+
+        Two equivalent forms (CONTRACTS.md §5):
+          for frame in engine.run(window): ...            # generator
+          engine.run(window, on_tick=cb)                  # eager; calls
+                                                          # cb(t, state, frame)
+        """
+        if on_tick is None:
+            return self._iter(window, dt)
+        for frame in self._iter(window, dt):
+            on_tick(self.replayer.t, self.replayer.state, frame)
+        return None
+
+    def _iter(self, window: tuple, dt: int):
         start, end = window
         self.seek(start)
         while self.replayer.t < end:
