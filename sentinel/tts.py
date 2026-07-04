@@ -25,8 +25,27 @@ _ISSUE_LABELS = {
 }
 
 
+def _normalize_units_for_speech(text: str) -> str:
+    """Replace symbols/abbreviations TTS misreads (e.g. °C → 'degrees Celsius')."""
+    out = text
+    out = re.sub(r"°\s*C\s*/\s*min", " degrees Celsius per minute", out, flags=re.IGNORECASE)
+    out = re.sub(r"(-?\d+(?:\.\d+)?)\s*°\s*C", r"\1 degrees Celsius", out, flags=re.IGNORECASE)
+    out = re.sub(r"°\s*C", " degrees Celsius", out, flags=re.IGNORECASE)
+    # Bare "84 C" / "84C" temperature shorthand (not rack ids like rack-00).
+    out = re.sub(
+        r"(?<![A-Za-z0-9-])(-?\d+(?:\.\d+)?)\s*C(?=\s|[,.;:!?]|$)",
+        r"\1 degrees Celsius",
+        out,
+    )
+    out = out.replace("°", " degrees ")
+    out = re.sub(r"\bdeg(?:rees)?\s+C\b", "degrees Celsius", out, flags=re.IGNORECASE)
+    out = re.sub(r"\btemp_c\b", "temperature", out, flags=re.IGNORECASE)
+    return out
+
+
 def _sanitize_for_speech(text: str) -> str:
-    cleaned = re.sub(r"\s+", " ", text.replace("\n", " ").strip())
+    cleaned = _normalize_units_for_speech(text.replace("\n", " "))
+    cleaned = re.sub(r"\s+", " ", cleaned.strip())
     return cleaned
 
 
@@ -71,6 +90,8 @@ def _evidence_line(evidence: Evidence) -> str:
         return f"Current rack temperature {evidence.current:.0f} degrees Celsius."
     if evidence.value is not None and evidence.metric == "rack_util":
         return f"Rack utilization is {evidence.value * 100:.0f} percent."
+    if evidence.value is not None and "temp" in evidence.metric:
+        return f"Projected temperature is {evidence.value:.0f} degrees Celsius."
     if evidence.value is not None:
         return f"{evidence.metric.replace('_', ' ')} is {evidence.value}."
     return ""
@@ -105,13 +126,14 @@ class AlertSpeaker:
 
         out = Path(output_wav or self.output_wav)
         client = gradium.client.GradiumClient(api_key=self.api_key)
+        spoken = _sanitize_for_speech(text)
         result = await client.tts(
             {
                 "voice_id": self.voice_id,
                 "output_format": "pcm",
                 "json_config": {"speed": self.speed},
             },
-            text,
+            spoken,
         )
         with wave.open(str(out), "wb") as wav:
             wav.setnchannels(1)

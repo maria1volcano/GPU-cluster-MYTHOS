@@ -50,6 +50,39 @@ def test_build_alert_text_without_recommendation():
     assert "4 heavy jobs" in text
 
 
+def test_build_alert_text_normalizes_celsius_for_speech():
+    prediction = Prediction(
+        prediction_id="pred-3",
+        type="THERMAL_THROTTLE",
+        target={"kind": "rack", "id": "rack-00"},
+        eta_seconds=0.0,
+        severity="high",
+        confidence=0.9,
+        evidence=[Evidence(metric="rack_temp_c", slope_per_min=-0.3, threshold=84.0, current=84.3)],
+        t=100,
+    )
+    recommendation = Recommendation(
+        recommendation_id="rec-3",
+        prediction_id="pred-3",
+        action="MIGRATE_JOB",
+        job_id="openb-pod-0007",
+        from_rack="rack-00",
+        to_rack="rack-03",
+        expected_effect="cool down",
+        justification=(
+            "Rack-00 is already at 84.3°C, above the 84°C threshold with -0.3°C headroom "
+            "and 30 GPUs throttling."
+        ),
+        source="template_fallback",
+    )
+    text = build_alert_text(prediction, recommendation)
+    assert "°" not in text
+    assert "84.3 degrees Celsius" in text
+    assert "84 degrees Celsius threshold" in text
+    assert "-0.3 degrees Celsius headroom" in text
+    assert " dollar " not in text.lower()
+
+
 def test_alert_speaker_skips_without_api_key():
     speaker = AlertSpeaker(api_key="")
     assert speaker.speak_sync("hello") is None
