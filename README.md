@@ -1,6 +1,6 @@
-# Mythos 6 - GPU Cluster Ops Agent
+# GPU Cluster Ops Agent
 
-**Mythos 6** is an AI-powered GPU cluster operations dashboard built for the **Crusoe track**. It monitors a live GPU cluster stream, predicts operational risks before they impact workloads, and gives operators clear recommendations they can approve, override, or question.
+**GPU Cluster Ops Agent** is an AI-powered GPU cluster operations dashboard built for the **Crusoe track**. It monitors a live GPU cluster stream, predicts operational risks before they impact workloads, and gives operators clear recommendations they can approve, override, or question.
 
 The project follows one core operational loop:
 
