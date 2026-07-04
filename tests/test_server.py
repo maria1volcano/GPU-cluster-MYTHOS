@@ -181,6 +181,39 @@ def test_alert_audio_404_when_not_ready(client):
     assert res.status_code == 404
 
 
+def test_approve_returns_impact_payload(client):
+    pending = _wait_for_recommendation()
+    rec_id = pending.recommendation.recommendation_id
+    res = client.post(f"/api/agent/recommendation/{rec_id}/approve")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["success"] is True
+    assert body["action"] == "approved"
+    assert body["outcome"] in ("averted", "unknown")
+    assert body["title"]
+    assert body["detail"]
+    assert body["fromRack"]
+    events = client.get("/api/telemetry/events").json()
+    assert any("Migrated" in e["message"] or "approved" in e["message"].lower() for e in events)
+    assert client.get("/api/agent/recommendation").status_code == 204
+
+
+def test_override_returns_impact_payload(client):
+    pending = _wait_for_recommendation()
+    rec_id = pending.recommendation.recommendation_id
+    res = client.post(
+        f"/api/agent/recommendation/{rec_id}/override",
+        json={"reason": "Maintenance scheduled"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["action"] == "overridden"
+    assert body["outcome"] == "overridden"
+    assert "Maintenance scheduled" in body["detail"]
+    events = client.get("/api/telemetry/events").json()
+    assert any("No migration applied" in e["message"] for e in events)
+
+
 def test_frontend_polling_alert_playback_flow(tts_client):
     """Simulates dashboard polling until alertAudioUrl is ready, then fetches WAV."""
     client, speaker = tts_client

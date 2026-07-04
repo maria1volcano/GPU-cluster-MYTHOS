@@ -18,11 +18,13 @@ import {
 } from "lucide-react";
 
 import { BackgroundLayer } from "@/components/BackgroundLayer";
+import { ClientOnly } from "@/components/ClientOnly";
 import { LiquidLogo } from "@/components/LiquidLogo";
 import { MetricCard } from "@/components/MetricCard";
 import { RackMap3D } from "@/components/RackMap3D";
 import { RackDetailPanel } from "@/components/RackDetailPanel";
 import { AgentRecommendationPanel } from "@/components/AgentRecommendationPanel";
+import { OperatorImpactBanner } from "@/components/OperatorImpactBanner";
 import { TelemetryFeed } from "@/components/TelemetryFeed";
 import { OverrideModal } from "@/components/OverrideModal";
 import { IntegrationStatus } from "@/components/IntegrationStatus";
@@ -44,9 +46,11 @@ import { useRecommendationAlert } from "@/lib/alertAudio";
 import type {
   AgentRecommendation,
   ClusterState,
+  OperatorActionResult,
   RackMetric,
   TelemetryEvent,
 } from "@/types/cluster";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -73,6 +77,7 @@ function Dashboard() {
   const [running, setRunning] = useState(true);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [lastImpact, setLastImpact] = useState<OperatorActionResult | null>(null);
   const replayBooted = useRef(false);
 
   const { data, isPending, isFetching, isError, error } = useQuery({
@@ -113,17 +118,40 @@ function Dashboard() {
     setRunning(next);
   };
 
+  useEffect(() => {
+    if (!lastImpact) return;
+    const timer = window.setTimeout(() => setLastImpact(null), 12_000);
+    return () => window.clearTimeout(timer);
+  }, [lastImpact]);
+
   const acceptMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => acceptRecommendation(r),
-    onSuccess: () => {
+    onSuccess: (impact) => {
       setShowExplanation(false);
+      setLastImpact(impact);
+      toast.success(impact.title, { description: impact.detail, duration: 8000 });
       refresh();
+    },
+    onError: (err) => {
+      toast.error("Approval failed", {
+        description: err instanceof Error ? err.message : "Could not reach the backend.",
+      });
     },
   });
   const overrideMutation = useMutation({
     mutationFn: ({ r, reason }: { r: AgentRecommendation; reason: string }) =>
       overrideRecommendation(r, reason),
-    onSuccess: refresh,
+    onSuccess: (impact) => {
+      setOverrideOpen(false);
+      setLastImpact(impact);
+      toast.warning(impact.title, { description: impact.detail, duration: 8000 });
+      refresh();
+    },
+    onError: (err) => {
+      toast.error("Override failed", {
+        description: err instanceof Error ? err.message : "Could not reach the backend.",
+      });
+    },
   });
   const askWhyMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => askWhy(r),
@@ -131,8 +159,13 @@ function Dashboard() {
   });
 
   const selectedRack = useMemo(
-    () => state?.racks.find((r) => r.id === selectedRackId) ?? null,
+    () => state?.racks?.find((r) => r.id === selectedRackId) ?? null,
     [state, selectedRackId],
+  );
+
+  const mapRacks = useMemo(
+    () => state?.mapRacks ?? state?.racks?.slice(0, 8) ?? [],
+    [state],
   );
 
   const topRack = useMemo(() => {
@@ -168,6 +201,9 @@ function Dashboard() {
       <BackgroundLayer />
 
       <div className="mx-auto max-w-[1440px] px-6 py-7 lg:px-10 lg:py-8">
+        {lastImpact && (
+          <OperatorImpactBanner impact={lastImpact} onDismiss={() => setLastImpact(null)} />
+        )}
         {isError && (
           <div className="mb-4 rounded-sm border border-crit/40 bg-crit/10 px-4 py-3 text-sm text-crit">
             Live backend unreachable — start it with{" "}
@@ -208,7 +244,7 @@ function Dashboard() {
         <section className="stagger mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           <MetricCard
             label="Total racks"
-            value={state?.racks.length ?? 0}
+            value={state?.racks?.length ?? 0}
             icon={Cpu}
             loading={loading}
           />
@@ -245,7 +281,7 @@ function Dashboard() {
           <MetricCard
             label="Throttling risks"
             value={
-              state?.racks.filter((r) => r.riskLevel === "critical" || r.riskLevel === "warning")
+              state?.racks?.filter((r) => r.riskLevel === "critical" || r.riskLevel === "warning")
                 .length ?? 0
             }
             icon={ShieldAlert}
@@ -272,11 +308,19 @@ function Dashboard() {
                 title="Cluster map"
                 hint="8-rack GPU floor"
               />
-              <RackMap3D
-                racks={state?.mapRacks ?? state?.racks.slice(0, 8) ?? []}
-                selectedId={selectedRackId}
-                onSelect={setSelectedRackId}
-              />
+              <ClientOnly
+                fallback={
+                  <div className="flex h-[410px] w-full items-center justify-center rounded-sm border border-line bg-surface/85 font-mono text-[11px] uppercase tracking-widest text-ink-faint">
+                    Loading cluster map…
+                  </div>
+                }
+              >
+                <RackMap3D
+                  racks={mapRacks}
+                  selectedId={selectedRackId}
+                  onSelect={setSelectedRackId}
+                />
+              </ClientOnly>
             </div>
 
             <div id="agent-recommendation">
@@ -291,6 +335,7 @@ function Dashboard() {
                 onOverride={() => setOverrideOpen(true)}
                 onAskWhy={handleAskWhy}
                 showExplanation={showExplanation}
+                isAccepting={acceptMutation.isPending}
               />
             </div>
 

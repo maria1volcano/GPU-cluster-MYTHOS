@@ -2,6 +2,7 @@ import type {
   AgentRecommendation,
   ClusterState,
   DecisionLogEntry,
+  OperatorActionResult,
   TelemetryEvent,
 } from "@/types/cluster";
 import {
@@ -90,7 +91,7 @@ export async function getClusterState(): Promise<ClusterState> {
   }
   const state = await getJson<ClusterState>("/api/cluster/state");
   apiConfig.lastFetch = new Date().toISOString();
-  return state;
+  return { ...state, racks: state.racks ?? [], mapRacks: state.mapRacks };
 }
 
 // --- recommendation --------------------------------------------------------
@@ -120,16 +121,29 @@ export async function approveRecommendation(recommendationId: string, rec?: Agen
     const recommendation = rec ?? getRecommendation();
     if (recommendation?.destinationRackId)
       migrateJob(recommendation.affectedRackId, recommendation.destinationRackId);
+    const detail = recommendation?.destinationRackId
+      ? `Migrated ${recommendation.affectedJobId ?? "workload"} from ${recommendation.affectedRackId} to ${recommendation.destinationRackId}. Thermal load shifted off the hot rack.`
+      : `Operator approved the recommendation for ${recommendation?.affectedRackId ?? recommendationId}.`;
     pushTelemetry({
       type: "operator_event",
-      rackId: recommendation?.affectedRackId,
-      message: `Operator approved: ${recommendation?.title ?? recommendationId}`,
+      rackId: recommendation?.destinationRackId ?? recommendation?.affectedRackId,
+      message: detail,
       severity: "healthy",
     });
-    return { success: true };
+    return {
+      success: true,
+      action: "approved" as const,
+      outcome: "averted" as const,
+      title: "Incident averted — workload migrated",
+      detail,
+      jobId: recommendation?.affectedJobId,
+      fromRack: recommendation?.affectedRackId,
+      toRack: recommendation?.destinationRackId,
+      timeToImpactMinutes: recommendation?.timeToImpactMinutes,
+    } satisfies OperatorActionResult;
   }
-  await post(`/api/agent/recommendation/${recommendationId}/approve`);
-  return { success: true };
+  const res = await post(`/api/agent/recommendation/${recommendationId}/approve`);
+  return (await res.json()) as OperatorActionResult;
 }
 
 export async function overrideRecommendation(
@@ -142,7 +156,7 @@ export async function overrideRecommendation(
     pushTelemetry({
       type: "operator_event",
       rackId: rec?.affectedRackId,
-      message: `Operator overrode recommendation — ${reason}`,
+      message: `Override recorded — ${rec?.affectedJobId ?? "workload"} stays on ${rec?.affectedRackId ?? "rack"}. Reason: ${reason}`,
       severity: "warning",
     });
     pushTelemetry({
@@ -150,10 +164,22 @@ export async function overrideRecommendation(
       message: "Agent updated future recommendations based on operator feedback",
       severity: "watch",
     });
-    return { success: true };
+    const detail = `No migration applied — workload stays on ${rec?.affectedRackId ?? "the affected rack"}. Reason: ${reason}. Impact window unchanged (~${rec?.timeToImpactMinutes ?? "?"} min).`;
+    return {
+      success: true,
+      action: "overridden" as const,
+      outcome: "overridden" as const,
+      title: "Recommendation overridden — no migration",
+      detail,
+      jobId: rec?.affectedJobId,
+      fromRack: rec?.affectedRackId,
+      toRack: rec?.destinationRackId,
+      reason,
+      timeToImpactMinutes: rec?.timeToImpactMinutes,
+    } satisfies OperatorActionResult;
   }
-  await post(`/api/agent/recommendation/${recommendationId}/override`, { reason });
-  return { success: true };
+  const res = await post(`/api/agent/recommendation/${recommendationId}/override`, { reason });
+  return (await res.json()) as OperatorActionResult;
 }
 
 export async function askWhy(recOrId: AgentRecommendation | string) {
@@ -197,12 +223,17 @@ export async function fetchDashboard(): Promise<DashboardData> {
     const events = [...(await fetchTelemetry())];
     return { state, rec, events };
   }
-  const [state, rec, events] = await Promise.all([
+  const [stateResult, recResult, eventsResult] = await Promise.allSettled([
     getClusterState(),
     fetchRecommendation(),
     fetchTelemetry(),
   ]);
-  return { state, rec, events: [...events] };
+  if (stateResult.status === "rejected") throw stateResult.reason;
+  return {
+    state: stateResult.value,
+    rec: recResult.status === "fulfilled" ? recResult.value : null,
+    events: eventsResult.status === "fulfilled" ? [...eventsResult.value] : [],
+  };
 }
 
 /** @deprecated mock-only synchronous read — use {@link fetchTelemetry} for live mode. */

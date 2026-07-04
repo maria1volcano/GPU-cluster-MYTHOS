@@ -212,52 +212,101 @@ class ClusterRuntime:
 
     # --- operator actions ----------------------------------------------------
 
-    def approve_recommendation(self, recommendation_id: str) -> bool:
+    def approve_recommendation(self, recommendation_id: str) -> Dict[str, Any]:
         with self._lock:
             pending = self._require_pending(recommendation_id)
             rec = pending.recommendation
+            pred = pending.prediction
             ok = False
             if rec.job_id and rec.to_rack:
                 ok = self.engine.apply_action("MIGRATE_JOB", rec.job_id, rec.to_rack)
             pending.status = "approved"
             self.decision_log.record(
                 t=pending.frame_t,
-                prediction=pending.prediction,
+                prediction=pred,
                 recommendation=rec,
                 operator_action="APPROVE",
                 operator_alternative=None,
                 outcome="AVERTED" if ok else "UNKNOWN",
-                lead_time_seconds=float(pending.prediction.eta_seconds),
+                lead_time_seconds=float(pred.eta_seconds),
                 latency_ms=0.0,
             )
-            msg = f"Operator approved: migrate {rec.job_id} to {rec.to_rack}"
-            self._push_event(msg, event_type="operator_event", severity="healthy", rack_id=rec.from_rack)
+            rack_id = rec.from_rack or pred.target.get("id")
+            if ok:
+                title = "Incident averted — workload migrated"
+                detail = (
+                    f"Migrated {rec.job_id} from {rec.from_rack} to {rec.to_rack}. "
+                    f"Thermal load shifted off {rec.from_rack}; {rec.to_rack} absorbs the job with headroom."
+                )
+                self._push_event(
+                    detail,
+                    event_type="operator_event",
+                    severity="healthy",
+                    rack_id=rec.to_rack,
+                )
+                self._push_event(
+                    f"Projected throttling risk on {rec.from_rack} reduced after operator approval",
+                    event_type="agent_event",
+                    severity="healthy",
+                    rack_id=rack_id,
+                )
+            else:
+                title = "Approval recorded"
+                detail = (
+                    f"Operator approved the recommendation for {rec.job_id}, "
+                    f"but migration could not be applied automatically."
+                )
+                self._push_event(
+                    f"Operator approved: migrate {rec.job_id} to {rec.to_rack}",
+                    event_type="operator_event",
+                    severity="watch",
+                    rack_id=rack_id,
+                )
             self._pending = None
             self.replay_status = "resolved"
-            return ok
+            return {
+                "success": True,
+                "action": "approved",
+                "outcome": "averted" if ok else "unknown",
+                "title": title,
+                "detail": detail,
+                "jobId": rec.job_id,
+                "fromRack": rec.from_rack,
+                "toRack": rec.to_rack,
+                "expectedEffect": rec.expected_effect,
+                "timeToImpactMinutes": max(0, round(pred.eta_seconds / 60)),
+            }
 
-    def override_recommendation(self, recommendation_id: str, reason: str) -> bool:
+    def override_recommendation(self, recommendation_id: str, reason: str) -> Dict[str, Any]:
         with self._lock:
             pending = self._require_pending(recommendation_id)
             rec = pending.recommendation
+            pred = pending.prediction
             pending.status = "overridden"
             self.decision_log.record(
                 t=pending.frame_t,
-                prediction=pending.prediction,
+                prediction=pred,
                 recommendation=rec,
                 operator_action="OVERRIDE",
                 operator_alternative={"reason": reason},
                 outcome="UNKNOWN",
-                lead_time_seconds=float(pending.prediction.eta_seconds),
+                lead_time_seconds=float(pred.eta_seconds),
                 latency_ms=0.0,
+            )
+            rack_id = rec.from_rack or pred.target.get("id")
+            eta_min = max(0, round(pred.eta_seconds / 60))
+            detail = (
+                f"No migration applied — {rec.job_id or 'workload'} stays on {rack_id}. "
+                f"Reason: {reason}. "
+                f"Impact window unchanged (~{eta_min} min to projected throttling)."
             )
             self.learner.apply()
             self.thresholds.save()
             self._push_event(
-                f"Operator overrode recommendation — {reason}",
+                detail,
                 event_type="operator_event",
                 severity="warning",
-                rack_id=rec.from_rack,
+                rack_id=rack_id,
             )
             self._push_event(
                 "Agent updated future recommendations based on operator feedback",
@@ -265,7 +314,18 @@ class ClusterRuntime:
                 severity="watch",
             )
             self._pending = None
-            return True
+            return {
+                "success": True,
+                "action": "overridden",
+                "outcome": "overridden",
+                "title": "Recommendation overridden — no migration",
+                "detail": detail,
+                "jobId": rec.job_id,
+                "fromRack": rack_id,
+                "toRack": rec.to_rack,
+                "reason": reason,
+                "timeToImpactMinutes": eta_min,
+            }
 
     def explain_recommendation(self, recommendation_id: str) -> Dict[str, Any]:
         with self._lock:

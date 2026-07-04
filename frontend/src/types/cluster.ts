@@ -94,6 +94,20 @@ export interface OperatorActionEvent {
   reason?: string;
 }
 
+export interface OperatorActionResult {
+  success: boolean;
+  action: "approved" | "overridden";
+  outcome: "averted" | "overridden" | "unknown";
+  title: string;
+  detail: string;
+  jobId?: string;
+  fromRack?: string;
+  toRack?: string;
+  reason?: string;
+  expectedEffect?: string;
+  timeToImpactMinutes?: number;
+}
+
 export interface TelemetryEvent {
   id: string;
   timestamp: string;

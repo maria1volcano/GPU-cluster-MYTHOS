@@ -60,21 +60,19 @@ def get_recommendation(response: Response):
 
 
 @app.post("/api/agent/recommendation/{recommendation_id}/approve")
-def approve_recommendation(recommendation_id: str) -> Dict[str, bool]:
+def approve_recommendation(recommendation_id: str) -> Dict[str, Any]:
     try:
-        get_runtime().approve_recommendation(recommendation_id)
+        return get_runtime().approve_recommendation(recommendation_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Recommendation not found")
-    return {"success": True}
 
 
 @app.post("/api/agent/recommendation/{recommendation_id}/override")
-def override_recommendation(recommendation_id: str, body: OverrideBody) -> Dict[str, bool]:
+def override_recommendation(recommendation_id: str, body: OverrideBody) -> Dict[str, Any]:
     try:
-        get_runtime().override_recommendation(recommendation_id, body.reason)
+        return get_runtime().override_recommendation(recommendation_id, body.reason)
     except KeyError:
         raise HTTPException(status_code=404, detail="Recommendation not found")
-    return {"success": True}
 
 
 @app.post("/api/agent/recommendation/{recommendation_id}/why")

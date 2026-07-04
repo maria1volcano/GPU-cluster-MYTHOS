@@ -25,26 +25,29 @@ export function TelemetryFeed({ events }: { events: TelemetryEvent[] }) {
         {events.length === 0 && (
           <p className="pt-6 text-center text-xs text-ink-faint">Waiting for telemetry…</p>
         )}
-        {events.map((e) => (
+        {events.map((e) => {
+          const isOperator = e.type === "operator_event";
+          return (
           <div
             key={e.id}
             className={`flex items-start gap-3 rounded-sm px-3 py-2 text-xs ${innerGlassPanel} ${
               e.id === newestId ? "animate-in fade-in slide-in-from-top-1 duration-300" : ""
-            }`}
+            } ${isOperator ? "border border-heat/35 bg-heat/10" : ""}`}
           >
             <span
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
               style={{ background: riskColorHex(e.severity) }}
             />
             <div className="flex-1">
-              <p className="text-ink">{e.message}</p>
+              <p className={`text-ink ${isOperator ? "font-semibold" : ""}`}>{e.message}</p>
               <p className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
                 {new Date(e.timestamp).toLocaleTimeString()} · {e.type.replace("_", " ")}
                 {e.rackId && ` · ${e.rackId}`}
               </p>
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

@@ -17,12 +17,14 @@ export function AgentRecommendationPanel({
   onOverride,
   onAskWhy,
   showExplanation,
+  isAccepting = false,
 }: {
   rec: AgentRecommendation | null;
   onAccept: () => void;
   onOverride: () => void;
   onAskWhy: () => void;
   showExplanation: boolean;
+  isAccepting?: boolean;
 }) {
   if (!rec) {
     return (
@@ -93,7 +95,7 @@ export function AgentRecommendationPanel({
       </div>
 
       <div className="relative mt-5 grid gap-2 sm:grid-cols-2">
-        {rec.signals.map((s) => (
+        {(rec.signals ?? []).map((s) => (
           <div
             key={s.name}
             className={`flex items-center justify-between rounded-sm px-3.5 py-2.5 text-sm ${innerGlassPanel}`}
@@ -133,9 +135,10 @@ export function AgentRecommendationPanel({
       <div className="relative mt-6 flex flex-wrap gap-2">
         <button
           onClick={onAccept}
-          className="inline-flex items-center gap-2 rounded-sm bg-heat min-h-11 px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-[#0a0a0b] transition hover:bg-heat/90"
+          disabled={isAccepting}
+          className="inline-flex items-center gap-2 rounded-sm bg-heat min-h-11 px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-[#0a0a0b] transition hover:bg-heat/90 disabled:opacity-60"
         >
-          <Check className="h-4 w-4" /> Accept
+          <Check className="h-4 w-4" /> {isAccepting ? "Applying…" : "Accept"}
         </button>
         <button
           onClick={onOverride}

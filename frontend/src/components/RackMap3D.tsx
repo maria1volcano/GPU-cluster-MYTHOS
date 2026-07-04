@@ -85,7 +85,7 @@ const Rack = memo(function Rack({
   });
 
   return (
-    <group position={[rack.position.x, 0, rack.position.z ?? 0]}>
+    <group position={[rack.position?.x ?? 0, 0, rack.position?.z ?? 0]}>
       <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.48, 0]}>
         <circleGeometry args={[1.05, 32]} />
         <meshBasicMaterial color={color.current} transparent opacity={0.28} />
@@ -161,6 +161,7 @@ function RackScene({
   onSelect: (id: string) => void;
   onHover: (r: RackMetric | null) => void;
 }) {
+  const safeRacks = racks.filter((r) => r?.position && Number.isFinite(r.position.x));
   return (
     <>
       <ambientLight intensity={0.35} />
@@ -168,7 +169,7 @@ function RackScene({
       <pointLight position={[-5, 4, -4]} intensity={0.45} color="#ff6b1a" />
       <pointLight position={[5, 4, 4]} intensity={0.35} color="#34d0a8" />
       <Floor />
-      {racks.map((r) => (
+      {safeRacks.map((r) => (
         <Rack
           key={r.id}
           rack={r}
