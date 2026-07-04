@@ -14,7 +14,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
+from dotenv import load_dotenv
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Load .env from the repo root so CRUSOE_API_KEY and other env vars are
+# available without requiring the user to manually export them.
+load_dotenv(REPO_ROOT / ".env")
 
 # --- Reproducibility -------------------------------------------------------
 RNG_SEED = int(os.environ.get("SENTINEL_RNG_SEED", "42"))
