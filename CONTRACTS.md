@@ -90,6 +90,7 @@ Per-model constants (idle/throttle temps, TDP, base clocks): `sentinel/telemetry
 ```
 
 - Bin-packing concentrates load on a few nodes, so a mean over all 256 GPUs would dilute the thermal signal. **Trend on `temp_c_mean_active` (recommended) or `temp_c_max`**; `util` = `gpu_demand / capacity_gpus` is the occupancy signal.
+- **Caveat for trend logic:** `temp_c_mean_active` is composition-sensitive — when a burst of new jobs lands, the fresh (still-cool, climbing) GPUs briefly *dilute* the mean before driving it up. That dip-then-climb is the alert signature, not noise. `throttling_gpus` and `queued_heavy` are the complementary evidence; smooth the mean (EWMA) before extrapolating.
 - `queued_pods` / `queued_heavy`: pending pods whose **placement preview** targets this rack (the trace has no per-pod rack affinity; the deterministic bin-packing policy defines "would land here"). This is the "3 heavy jobs queued on Rack 7" signal for the bottleneck predictor.
 - Throttle threshold per rack = its model's `throttle_temp` (homogeneous racks, so one line per rack chart).
 

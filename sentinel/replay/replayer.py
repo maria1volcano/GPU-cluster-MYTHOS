@@ -79,10 +79,10 @@ class Replayer:
                 self.unplaceable.append(pod.name)  # keep pending; never happens in this trace
                 self.state.enqueue(pod)
             else:
-                self.state.place(pod, assignments)
+                self.state.place(pod, assignments, event.t)
         elif event.kind == POD_DELETED:
             if self.state.dequeue(pod.name) is None:
-                self.state.free(pod.name)
+                self.state.free(pod.name, event.t)
 
     # --- operator action (DESIGN §4: Backend -> Replayer) ---------------------
     def apply_action(self, action: str, job_id: str, to_rack: str) -> bool:
@@ -94,13 +94,13 @@ class Replayer:
         assignments = self.placement.choose_in_rack(pod, to_rack)
         if assignments is None:
             return False  # target lacks capacity — guardrail for the agent layer
-        was_somewhere = self.state.free(job_id)
+        was_somewhere = self.state.free(job_id, self.t)
         was_pending = self.state.dequeue(job_id) is not None
         if not (was_somewhere or was_pending):
             return False  # job not live (already finished)
         # Recompute in case freeing its own old slot changed the tightest fit.
         assignments = self.placement.choose_in_rack(pod, to_rack)
-        self.state.place(pod, assignments)
+        self.state.place(pod, assignments, self.t)
         return True
 
 

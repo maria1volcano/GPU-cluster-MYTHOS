@@ -18,6 +18,8 @@ class ClusterState:
         self.topology = topology
         self.load_milli: dict = {g: 0 for g in topology.gpu_ids()}
         self.free_whole_gpus: dict = {n.sn: n.gpu for n in topology.nodes}
+        self.active_gpus: set = set()     # gpu_ids with load > 0
+        self.load_changed_t: dict = {}    # gpu_id -> event time its load last changed
         self.placements: dict = {}        # pod_name -> tuple of (gpu_id, milli)
         self.pod_rack: dict = {}          # pod_name -> rack_id (GPU pods only)
         self.pending: dict = {}           # pod_name -> Pod, insertion order
@@ -33,7 +35,7 @@ class ClusterState:
         return self.pending.pop(pod_name, None)
 
     # --- placement -------------------------------------------------------
-    def place(self, pod: Pod, assignments: tuple) -> None:
+    def place(self, pod: Pod, assignments: tuple, t: int) -> None:
         if not assignments:               # CPU-only pod
             self.active_cpu.add(pod.name)
             return
@@ -41,6 +43,8 @@ class ClusterState:
         for gpu_id, milli in assignments:
             was_free = self.load_milli[gpu_id] == 0
             self.load_milli[gpu_id] += milli
+            self.active_gpus.add(gpu_id)
+            self.load_changed_t[gpu_id] = t
             if was_free:
                 self.free_whole_gpus[gpu_id.split("/")[0]] -= 1
             self.rack_demand_milli[rack_id] += milli
@@ -48,7 +52,7 @@ class ClusterState:
         self.pod_rack[pod.name] = rack_id
         self.rack_active_pods[rack_id] += 1
 
-    def free(self, pod_name: str) -> bool:
+    def free(self, pod_name: str, t: int) -> bool:
         if pod_name in self.active_cpu:
             self.active_cpu.discard(pod_name)
             return True
@@ -58,8 +62,10 @@ class ClusterState:
         rack_id = self.pod_rack.pop(pod_name)
         for gpu_id, milli in assignments:
             self.load_milli[gpu_id] -= milli
+            self.load_changed_t[gpu_id] = t
             if self.load_milli[gpu_id] == 0:
                 self.free_whole_gpus[gpu_id.split("/")[0]] += 1
+                self.active_gpus.discard(gpu_id)
             self.rack_demand_milli[rack_id] -= milli
         self.rack_active_pods[rack_id] -= 1
         return True

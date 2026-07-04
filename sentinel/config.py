@@ -45,6 +45,11 @@ HEAVY_GPU_DEMAND = 1.0
 RACK_FILL_CAP = None
 
 # --- Telemetry model (DESIGN §2.3) --------------------------------------------
+# A GPU's target temp = idle + (util_temp_max - idle)*util + coupling. Profiles
+# keep util_temp_max BELOW throttle_temp, so a lone busy GPU never throttles:
+# only node/rack thermal coupling (dense packing of real heavy jobs) pushes it
+# over the line. Throttling is an emergent crowding effect, not scripted.
 TEMP_TAU_S = 300.0         # thermal time constant; alpha = 1 - exp(-tick/tau)
-RACK_COUPLING_C = 6.0      # max °C added to a GPU's target temp by a fully-busy rack
+NODE_COUPLING_C = 5.0      # max °C from a fully-loaded node (same enclosure)
+RACK_COUPLING_C = 6.0      # max °C from a fully-loaded rack (shared airflow)
 UTIL_NOISE = 0.02          # +/- uniform noise on util (seeded, reproducible)

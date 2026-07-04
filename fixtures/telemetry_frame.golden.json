@@ -1,0 +1,1867 @@
+{
+  "type": "telemetry",
+  "v": 1,
+  "tick": 137,
+  "t": 12824140,
+  "trace_day": 148.428,
+  "samples": [
+    {
+      "gpu_id": "openb-node-0026/gpu-0",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.7,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1364,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-1",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.936,
+      "temp_c": 82.6,
+      "power_w": 283.4,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13028,
+      "throttle_reasons": [],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-2",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.991,
+      "temp_c": 85.7,
+      "power_w": 297.6,
+      "sm_clock_mhz": 1365,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13795,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 1
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-3",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.981,
+      "temp_c": 85.8,
+      "power_w": 295.0,
+      "sm_clock_mhz": 1361,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13656,
+      "throttle_reasons": [
+        "SW_THERMAL"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-4",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 75.5,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-5",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.6,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1370,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-6",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.8,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1360,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0026/gpu-7",
+      "node_sn": "openb-node-0026",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.986,
+      "temp_c": 85.7,
+      "power_w": 296.5,
+      "sm_clock_mhz": 1364,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13735,
+      "throttle_reasons": [
+        "SW_THERMAL"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-0",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.6,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1373,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-1",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.933,
+      "temp_c": 81.9,
+      "power_w": 282.6,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 12987,
+      "throttle_reasons": [],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-2",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.5,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1374,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-3",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.5,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1378,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-4",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.0,
+      "temp_c": 63.8,
+      "power_w": 42.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 0,
+      "throttle_reasons": [],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-5",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.996,
+      "temp_c": 85.5,
+      "power_w": 299.1,
+      "sm_clock_mhz": 1375,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13877,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-6",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.95,
+      "temp_c": 83.2,
+      "power_w": 287.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13227,
+      "throttle_reasons": [],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0027/gpu-7",
+      "node_sn": "openb-node-0027",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 83.8,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-0",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.4,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1381,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-1",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.892,
+      "temp_c": 81.3,
+      "power_w": 272.1,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 12423,
+      "throttle_reasons": [],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-2",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.983,
+      "temp_c": 85.3,
+      "power_w": 295.6,
+      "sm_clock_mhz": 1391,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13691,
+      "throttle_reasons": [
+        "SW_THERMAL"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 1
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-3",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.4,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1384,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-4",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.983,
+      "temp_c": 85.3,
+      "power_w": 295.6,
+      "sm_clock_mhz": 1391,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13689,
+      "throttle_reasons": [
+        "SW_THERMAL"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-5",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.0,
+      "temp_c": 68.1,
+      "power_w": 42.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 0,
+      "throttle_reasons": [],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-6",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.995,
+      "temp_c": 85.4,
+      "power_w": 298.7,
+      "sm_clock_mhz": 1382,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13853,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0028/gpu-7",
+      "node_sn": "openb-node-0028",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 60.4,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-0",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.994,
+      "temp_c": 85.8,
+      "power_w": 298.4,
+      "sm_clock_mhz": 1356,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13837,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-1",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.992,
+      "temp_c": 85.9,
+      "power_w": 297.8,
+      "sm_clock_mhz": 1352,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13808,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-2",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 86.0,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1348,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-3",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 86.0,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1348,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-4",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1349,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-5",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.993,
+      "temp_c": 85.9,
+      "power_w": 298.1,
+      "sm_clock_mhz": 1349,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13822,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-6",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.981,
+      "temp_c": 85.8,
+      "power_w": 295.1,
+      "sm_clock_mhz": 1356,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13660,
+      "throttle_reasons": [
+        "SW_THERMAL"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0029/gpu-7",
+      "node_sn": "openb-node-0029",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.989,
+      "temp_c": 86.0,
+      "power_w": 297.2,
+      "sm_clock_mhz": 1345,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13773,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0030/gpu-0",
+      "node_sn": "openb-node-0030",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 56.1,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0030/gpu-6",
+      "node_sn": "openb-node-0030",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 82.4,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0030/gpu-7",
+      "node_sn": "openb-node-0030",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 82.5,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1530,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-0",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1354,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-1",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.8,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1359,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-2",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.986,
+      "temp_c": 85.9,
+      "power_w": 296.4,
+      "sm_clock_mhz": 1353,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13733,
+      "throttle_reasons": [
+        "SW_THERMAL"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 1
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-3",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1351,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-4",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 86.0,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1345,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-5",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.989,
+      "temp_c": 85.9,
+      "power_w": 297.3,
+      "sm_clock_mhz": 1351,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13779,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-6",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 86.0,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1345,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0031/gpu-7",
+      "node_sn": "openb-node-0031",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1351,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 1
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-0",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.998,
+      "temp_c": 85.9,
+      "power_w": 299.4,
+      "sm_clock_mhz": 1353,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13896,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 2
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-1",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.995,
+      "temp_c": 85.9,
+      "power_w": 298.7,
+      "sm_clock_mhz": 1355,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13857,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-2",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 0.991,
+      "temp_c": 85.9,
+      "power_w": 297.7,
+      "sm_clock_mhz": 1351,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13801,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-3",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 86.0,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1344,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-4",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1355,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-5",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.7,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1365,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-6",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1350,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    },
+    {
+      "gpu_id": "openb-node-0032/gpu-7",
+      "node_sn": "openb-node-0032",
+      "rack_id": "rack-00",
+      "model": "G2",
+      "t": 12824140,
+      "util": 1.0,
+      "temp_c": 85.9,
+      "power_w": 300.0,
+      "sm_clock_mhz": 1353,
+      "mem_clock_mhz": 877,
+      "mem_used_mib": 13926,
+      "throttle_reasons": [
+        "SW_THERMAL",
+        "SW_POWER_CAP"
+      ],
+      "xid_errors": 0,
+      "ecc_errors": {
+        "volatile": 0,
+        "aggregate": 0
+      }
+    }
+  ],
+  "racks": [
+    {
+      "rack_id": "rack-00",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 48.68,
+      "util": 0.1902,
+      "active_gpus": 49,
+      "temp_c_mean_active": 84.0,
+      "temp_c_max": 86.0,
+      "power_w_total": 23273.2,
+      "throttling_gpus": 45,
+      "active_pods": 42,
+      "queued_pods": 8,
+      "queued_heavy": 8
+    },
+    {
+      "rack_id": "rack-01",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-02",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-03",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-04",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-05",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-06",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-07",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-08",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-09",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-10",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-11",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-12",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-13",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-14",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-15",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-16",
+      "gpu_model": "G2",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 10752.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-17",
+      "gpu_model": "G2",
+      "num_nodes": 5,
+      "capacity_gpus": 40,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 1680.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-18",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 76,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 912.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-19",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 64,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 768.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-20",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 64,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 768.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-21",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 66,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 792.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-22",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 68,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 816.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-23",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 66,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 792.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-24",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 64,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 768.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-25",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 64,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 768.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-26",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 68,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 816.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-27",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 66,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 792.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-28",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 68,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 816.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-29",
+      "gpu_model": "T4",
+      "num_nodes": 32,
+      "capacity_gpus": 66,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 792.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-30",
+      "gpu_model": "T4",
+      "num_nodes": 20,
+      "capacity_gpus": 42,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 28.0,
+      "temp_c_max": 28.0,
+      "power_w_total": 504.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-31",
+      "gpu_model": "G3",
+      "num_nodes": 32,
+      "capacity_gpus": 256,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 13312.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-32",
+      "gpu_model": "G3",
+      "num_nodes": 7,
+      "capacity_gpus": 56,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 2912.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-33",
+      "gpu_model": "P100",
+      "num_nodes": 32,
+      "capacity_gpus": 64,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 2048.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-34",
+      "gpu_model": "P100",
+      "num_nodes": 32,
+      "capacity_gpus": 62,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 1984.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-35",
+      "gpu_model": "P100",
+      "num_nodes": 32,
+      "capacity_gpus": 63,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 2016.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-36",
+      "gpu_model": "P100",
+      "num_nodes": 32,
+      "capacity_gpus": 64,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 2048.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-37",
+      "gpu_model": "P100",
+      "num_nodes": 6,
+      "capacity_gpus": 12,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 33.0,
+      "temp_c_max": 33.0,
+      "power_w_total": 384.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-38",
+      "gpu_model": "V100M32",
+      "num_nodes": 30,
+      "capacity_gpus": 204,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 8160.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-39",
+      "gpu_model": "V100M16",
+      "num_nodes": 32,
+      "capacity_gpus": 118,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 4720.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-40",
+      "gpu_model": "V100M16",
+      "num_nodes": 23,
+      "capacity_gpus": 77,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 34.0,
+      "temp_c_max": 34.0,
+      "power_w_total": 3080.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    },
+    {
+      "rack_id": "rack-41",
+      "gpu_model": "A10",
+      "num_nodes": 2,
+      "capacity_gpus": 2,
+      "gpu_demand": 0.0,
+      "util": 0.0,
+      "active_gpus": 0,
+      "temp_c_mean_active": 30.0,
+      "temp_c_max": 30.0,
+      "power_w_total": 40.0,
+      "throttling_gpus": 0,
+      "active_pods": 0,
+      "queued_pods": 0,
+      "queued_heavy": 0
+    }
+  ],
+  "queue": [
+    {
+      "name": "openb-pod-7671",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 132,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7672",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 130,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7673",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 99,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7674",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 98,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7675",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 98,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7676",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 70,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7677",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 37,
+      "target_rack": "rack-00"
+    },
+    {
+      "name": "openb-pod-7678",
+      "num_gpu": 1,
+      "gpu_milli": 1000,
+      "gpu_demand": 1.0,
+      "qos": "LS",
+      "heavy": true,
+      "waiting_s": 35,
+      "target_rack": "rack-00"
+    }
+  ],
+  "cluster": {
+    "active_pods": 44,
+    "pending_pods": 8,
+    "pending_heavy": 8,
+    "gpu_demand": 48.68,
+    "capacity_gpus": 6212,
+    "active_gpus": 49,
+    "throttling_gpus": 45,
+    "events_applied": 22132
+  }
+}
