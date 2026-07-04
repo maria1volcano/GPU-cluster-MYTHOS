@@ -133,10 +133,58 @@ This plan is **demo-first**: milestones **M0–M6** build the [North-Star 60-sec
 ---
 
 ## First-demo checklist (must all be true)
-- [ ] M0 data loads and matches real stats.
-- [ ] M1 replayer streams the demo window deterministically.
-- [ ] M2 a dense rack heats toward throttle under load.
-- [ ] M3 emits a `THERMAL_THROTTLE` (+bottleneck) prediction with ~8-min lead time.
-- [ ] M4 agent produces the migrate recommendation + justification (or fallback).
-- [ ] M5 dashboard shows it and accepts a one-tap approve.
-- [ ] M6 action averts the incident live and writes a decision-log entry.
+- [x] M0 data loads and matches real stats.
+- [x] M1 replayer streams the demo window deterministically.
+- [x] M2 a dense rack heats toward throttle under load.
+- [x] M3 emits a `THERMAL_THROTTLE` (+bottleneck) prediction with ~8-min lead time.
+- [x] M4 agent produces the migrate recommendation + justification (or fallback).
+- [ ] M5 dashboard shows it and accepts a one-tap approve. *(no UI yet — see below)*
+- [x] M6 action averts the incident live and writes a decision-log entry. *(CLI/backend only, no dashboard)*
+
+---
+
+## Implementation status — `sentinel/` backend (this branch)
+
+This branch implements the **backend/agent side** of the loop end-to-end
+(no dashboard UI yet) and specifically finishes **FR-5, FR-9, and FR-11**
+from the PRD, plus the M0–M4 and M6 groundwork those requirements depend
+on:
+
+- `sentinel/data/loader.py` — M0 CSV loaders + `stats()`, verified against
+  the exact PRD §2 numbers in `tests/test_loader_and_topology.py`.
+- `sentinel/topology.py` — M2 derived, homogeneous rack model.
+- `sentinel/replay.py` — M1 event-time `ClusterSimulator` (real
+  `creation_time`/`scheduled_time`/`deletion_time` events drive placement
+  and load; no wall-clock `SPEEDUP` mapping or play/pause/seek UI yet —
+  that's FR-10, still open) plus `apply_action(MIGRATE_JOB, ...)` and a
+  documented **stress-scenario trigger** (`set_stress_override` /
+  `force_place_on_rack`) so the demo doesn't depend on organic congestion
+  landing in a particular window.
+- `sentinel/telemetry.py` — M2 synthesized per-GPU DCGM-style telemetry
+  (`SimTelemetrySource`) + the `DcgmTelemetrySource` stub seam.
+- `sentinel/predict/engine.py` — M3 thermal-throttle + scheduling-bottleneck
+  predictors, each emitting `Prediction.evidence` (**FR-11**: every alert
+  carries the numeric trend/threshold that fired it). Node-instability
+  (FR-4) is still open.
+- `sentinel/agent/` — M4 deterministic `Recommender` (capacity-validated
+  candidates only) + `CrusoeClient` (Crusoe Managed Inference,
+  OpenAI-compatible) + `Agent.recommend()` producing the one-tap
+  `Recommendation` card (**FR-5**), with a templated fallback when the LLM
+  is unavailable/invalid (NFR-5).
+- `sentinel/decision_log.py` — M6 append-only JSONL decision log (FR-8).
+- `sentinel/learning.py` — **FR-9**: `OverrideLearner` aggregates recent
+  decision-log outcomes per alert class and tightens/relaxes that class's
+  thresholds, persisted to `sentinel_state.json`.
+- `sentinel/demo.py` (`python -m sentinel.demo`) — wires all of the above
+  into one script that prints the FR-5 card, the FR-11 evidence trail, and
+  a scripted FR-9 override→learn→relax sequence.
+- `tests/` — 22 pytest cases covering loaders/topology, telemetry, both
+  predictors' fire/no-fire evidence, the recommender's capacity guardrail,
+  agent LLM-choice validation + fallback, the decision log, and the
+  learner's tighten/floor/relax behavior.
+
+**Still open (unchanged from before this branch):** M5 dashboard/FR-1,
+FR-6/7 (dashboard-side approve/override UI — the backend primitives
+`apply_action`/`DecisionLog` they'd call already exist), FR-10 replay
+controls, FR-4 node instability *prediction* (telemetry already emits the
+XID/ECC signal it would consume).

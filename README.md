@@ -263,9 +263,45 @@ Actual structure may vary as the project evolves.
 
 - Frontend dashboard: in progress
 - Mock mode: supported
-- Backend integration: pending
-- Alibaba clusterdata replay: backend-owned
-- Crusoe Managed Inference integration: backend/agent-owned
+- Backend integration: pending (no HTTP/WS API yet — see `sentinel/` below for the working backend/agent loop)
+- Alibaba clusterdata replay: **implemented** (`sentinel/replay.py`)
+- Crusoe Managed Inference integration: **implemented** (`sentinel/agent/`) — FR-5, FR-9, FR-11 done, see below
+
+## Backend / Agent Loop (`sentinel/`)
+
+The `sentinel/` Python package implements the data → telemetry →
+prediction → agent → decision-log → learning loop described in
+[DESIGN.md](./DESIGN.md), and specifically finishes:
+
+- **FR-5** — one-tap recommendation card (plain-language justification +
+  concrete `MIGRATE_JOB` action), produced by `sentinel/agent/agent.py`
+  via Crusoe Managed Inference with a templated fallback.
+- **FR-9** — learning from overrides: `sentinel/learning.py` tightens or
+  relaxes an alert class's thresholds based on recent approve/override
+  history in the decision log.
+- **FR-11** — explainability: every `Prediction` (and the recommendation
+  built from it) carries the exact numeric trend/threshold evidence that
+  fired it.
+
+See [TASKS.md](./TASKS.md#implementation-status--sentinel-backend-this-branch)
+for the full file-by-file breakdown of what's implemented vs. still open.
+
+### Running it
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env   # fill in CRUSOE_API_KEY to use the real LLM;
+                        # leave it blank to exercise the templated fallback
+
+python -m sentinel.demo   # end-to-end FR-5 / FR-9 / FR-11 walkthrough
+python -m pytest tests/   # 22 tests covering the pipeline
+```
+
+`sentinel.demo` never hardcodes a Crusoe API key — it reads `CRUSOE_API_KEY`
+from the environment (see `sentinel/config.py`), and degrades gracefully to
+a templated recommendation if it's unset or the call fails (NFR-5).
 
 ## License
 
