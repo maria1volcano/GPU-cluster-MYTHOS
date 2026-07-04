@@ -85,6 +85,24 @@ class Replayer:
             if self.state.dequeue(pod.name) is None:
                 self.state.free(pod.name, event.t)
 
+    # --- digital-twin fork (M3, additive; no effect on the live path) --------
+    def clone(self) -> "Replayer":
+        """A cheap copy that shares the immutable event queue / pod table /
+        topology but has an independent `ClusterState`, so it can be stepped or
+        have actions applied without disturbing the live replay. Bypasses the
+        expensive `__init__` (no event-queue rebuild)."""
+        new = Replayer.__new__(Replayer)
+        new.topology = self.topology
+        new.pods = self.pods
+        new.events = self.events
+        new.state = self.state.clone()
+        new.placement = BinPackPlacement(self.topology, new.state)
+        new.t = self.t
+        new._idx = self._idx
+        new.events_applied = self.events_applied
+        new.unplaceable = list(self.unplaceable)
+        return new
+
     # --- operator action (DESIGN §4: Backend -> Replayer) ---------------------
     def apply_action(self, action: str, job_id: str, to_rack: str) -> bool:
         """Guardrail seam for agent/operator actions: every invalid input

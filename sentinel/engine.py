@@ -86,6 +86,28 @@ class Engine:
     def apply_action(self, action: str, job_id: str, to_rack: str) -> bool:
         return self.replayer.apply_action(action, job_id, to_rack)
 
+    # --- digital-twin fork (M3, additive; no effect on the live path) --------
+    def fork(self) -> "Engine":
+        """Return an independent copy of the engine at the current instant.
+
+        The fork shares immutable data (topology, event queue, pod table,
+        thermal profiles) but owns its replay cursor, cluster state, and thermal
+        state, so it can be stepped into the future — or have an action applied —
+        without disturbing the live run. This is the substrate for M3's
+        digital-twin lookahead and counterfactual "simulate the fix" scoring.
+
+        Determinism: forking at t and stepping forward yields the same frames a
+        fresh `Engine` seeked to t would, because telemetry draws are keyed on
+        (seed, gpu_id, t), not call order.
+        """
+        new = Engine.__new__(Engine)
+        new.topology = self.topology
+        new.replayer = self.replayer.clone()
+        new.sim = self.sim.clone()
+        new.tick_no = self.tick_no
+        new._events_base = self._events_base
+        return new
+
 
 def main() -> int:
     """M2 gate: the demo-window dynamics M3 needs, all emergent from real load:

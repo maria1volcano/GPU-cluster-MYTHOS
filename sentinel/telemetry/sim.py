@@ -154,6 +154,25 @@ class SimTelemetrySource(TelemetrySource):
                 samples.append(sample)
         return samples
 
+    def clone(self) -> "SimTelemetrySource":
+        """Copy for a digital-twin fork (M3, additive). Static per-GPU maps
+        (`_profile_of`, `_node_of`, `_node_instability`) are immutable and shared
+        by reference; the evolving thermal state (`_temps`), lifetime ECC counts,
+        and last-sample cache are copied so the clone evolves independently.
+        Determinism holds: draws are keyed on (seed, gpu_id, t), not call order,
+        so a clone stepped forward reproduces the parent's trajectory exactly."""
+        new = SimTelemetrySource.__new__(SimTelemetrySource)
+        new.topology = self.topology
+        new.seed = self.seed
+        new._profile_of = self._profile_of
+        new._node_of = self._node_of
+        new._node_instability = self._node_instability
+        new.t = self.t
+        new._temps = dict(self._temps)
+        new._ecc_aggregate = dict(self._ecc_aggregate)
+        new._last = dict(self._last)
+        return new
+
     def warm_start(self, t: int, state: ClusterState) -> None:
         """After a seek: initialize each loaded GPU's temp according to how long
         its load has actually been in place (the replayer's load_changed_t).

@@ -87,3 +87,25 @@ class ClusterState:
             tuple(self.pending),
             tuple(sorted(self.active_cpu)),
         )
+
+    def clone(self) -> "ClusterState":
+        """Deep-enough copy for a digital-twin fork (M3, additive).
+
+        `topology` and the `Pod` values in `pending` are immutable during replay
+        and shared by reference; every mutated container gets its own copy so
+        stepping the clone never touches the live state. `placements` values are
+        tuples (immutable), so a shallow dict copy is sufficient.
+        """
+        new = ClusterState.__new__(ClusterState)
+        new.topology = self.topology
+        new.load_milli = dict(self.load_milli)
+        new.free_whole_gpus = dict(self.free_whole_gpus)
+        new.active_gpus = set(self.active_gpus)
+        new.load_changed_t = dict(self.load_changed_t)
+        new.placements = dict(self.placements)
+        new.pod_rack = dict(self.pod_rack)
+        new.pending = dict(self.pending)
+        new.active_cpu = set(self.active_cpu)
+        new.rack_demand_milli = dict(self.rack_demand_milli)
+        new.rack_active_pods = dict(self.rack_active_pods)
+        return new
