@@ -1,6 +1,6 @@
 import type { RackMetric } from "@/types/cluster";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
-import { formatPercent, formatPowerKw, formatTemperatureC } from "@/lib/formatMetric";
+import { formatPercent, formatPowerKw, formatScheduledLoad, formatTemperatureC } from "@/lib/formatMetric";
 import { innerGlassPanel, glassPanel } from "@/lib/glassStyles";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { Cpu, Thermometer, Wind, Zap, Activity, X } from "lucide-react";
@@ -75,8 +75,8 @@ export function RackDetailPanel({
         />
         <MiniStat
           icon={<Cpu className="h-3.5 w-3.5" />}
-          label="GPU util"
-          value={formatPercent(rack.gpuUtilizationPct)}
+          label="Scheduled load"
+          value={formatScheduledLoad(rack.gpuDemandGpus, rack.gpuUtilizationPct)}
         />
         <MiniStat
           icon={<Wind className="h-3.5 w-3.5" />}

@@ -194,6 +194,22 @@ def test_tts_e2e_generates_alert_audio(tts_client):
     assert any("Voice alert ready" in e["message"] for e in events)
 
 
+def test_approve_refreshes_destination_load(client):
+    pending = _wait_for_recommendation()
+    rec = pending.recommendation
+    before = client.get("/api/cluster/state").json()
+    to_before = next(r for r in before["racks"] if r["id"] == rec.to_rack)
+    res = client.post(f"/api/agent/recommendation/{rec.recommendation_id}/approve")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["success"] is True
+    after = client.get("/api/cluster/state").json()
+    to_after = next(r for r in after["racks"] if r["id"] == rec.to_rack)
+    assert to_after["gpuDemandGpus"] >= to_before.get("gpuDemandGpus", 0)
+    if body.get("toRackDemandGpus") is not None:
+        assert to_after["gpuDemandGpus"] == body["toRackDemandGpus"]
+
+
 def test_alert_audio_404_when_not_ready(client):
     res = client.get("/api/agent/recommendation/rec-missing/alert-audio")
     assert res.status_code == 404

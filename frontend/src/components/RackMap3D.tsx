@@ -3,7 +3,7 @@ import { memo, Suspense, useMemo, useState } from "react";
 
 import { RackMapScene } from "@/components/RackMapScene";
 import type { RackMetric } from "@/types/cluster";
-import { formatPercent, formatPowerKw, formatTemperatureC } from "@/lib/formatMetric";
+import { formatPercent, formatPowerKw, formatScheduledLoad, formatTemperatureC } from "@/lib/formatMetric";
 import { riskColorHex } from "@/lib/riskStyles";
 import { innerGlassPanel } from "@/lib/glassStyles";
 
@@ -75,7 +75,7 @@ export const RackMap3D = memo(function RackMap3D({
               </span>
               <span>Util</span>
               <span className="text-right text-ink">
-                {formatPercent(hovered.gpuUtilizationPct)}
+                {formatScheduledLoad(hovered.gpuDemandGpus, hovered.gpuUtilizationPct)}
               </span>
               <span>Power</span>
               <span className="text-right text-ink">{formatPowerKw(hovered.powerDrawKw)}</span>
@@ -111,7 +111,9 @@ export const RackMap3D = memo(function RackMap3D({
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-1 font-mono text-[9px] text-ink-dim">
                 <span title="Temperature">{formatTemperatureC(rack.temperatureC)}</span>
-                <span title="GPU utilization">{formatPercent(rack.gpuUtilizationPct)}</span>
+                <span title="Scheduled GPU load">
+                  {formatScheduledLoad(rack.gpuDemandGpus, rack.gpuUtilizationPct)}
+                </span>
                 <span title="Power draw">{formatPowerKw(rack.powerDrawKw)}</span>
               </div>
             </button>

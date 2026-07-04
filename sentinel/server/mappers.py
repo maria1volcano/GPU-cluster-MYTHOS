@@ -121,6 +121,7 @@ def frame_to_cluster_state(
         prof = PROFILES.get(rack.gpu_model) if rack.gpu_model else None
         throttle = prof.throttle_temp if prof else 84.0
         util_pct = max(0.0, min(100.0, rack.util * 100.0))
+        demand_gpus = round(rack.gpu_demand, 2)
         trend = _slope_for_rack(rack.rack_id, trends)
         power_kw = max(0.1, rack.power_w_total / 1000.0)
         queue_pct = min(98.0, rack.queued_heavy * 12.0 + rack.queued_pods * 4.0)
@@ -152,6 +153,8 @@ def frame_to_cluster_state(
                 "temperatureTrendCPerMin": round(trend, 2),
                 "powerDrawKw": round(power_kw, 1),
                 "gpuUtilizationPct": round(util_pct, 1),
+                "gpuDemandGpus": demand_gpus,
+                "activePodCount": rack.active_pods,
                 "coolingEfficiencyPct": round(cooling, 1),
                 "queuePressurePct": round(queue_pct, 1),
                 "activeJobId": _primary_job_on_rack(rack.rack_id, pod_rack),

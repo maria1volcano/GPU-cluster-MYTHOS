@@ -22,3 +22,16 @@ export function formatPowerKw(value: number | null | undefined): string {
   const core = formatMetric(value, (n) => n.toFixed(1));
   return core === "—" ? core : `${core} kW`;
 }
+
+/** Scheduled GPU load: demand in GPU-equivalents plus capacity %. */
+export function formatScheduledLoad(
+  demandGpus: number | null | undefined,
+  utilPct: number | null | undefined,
+): string {
+  const demand = formatMetric(demandGpus, (n) => n.toFixed(1));
+  const pct = formatMetric(utilPct, (n) => n.toFixed(0));
+  if (demand === "—" && pct === "—") return "—";
+  if (demand === "—") return `${pct}% cap`;
+  if (pct === "—") return `${demand} GPU`;
+  return `${demand} GPU · ${pct}%`;
+}

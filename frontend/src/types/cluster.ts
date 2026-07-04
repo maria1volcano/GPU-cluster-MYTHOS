@@ -16,6 +16,9 @@ export interface RackMetric {
   temperatureTrendCPerMin: number;
   powerDrawKw: number;
   gpuUtilizationPct: number;
+  /** GPU-equivalent scheduled demand (from replay placement, not DCGM noise). */
+  gpuDemandGpus?: number;
+  activePodCount?: number;
   coolingEfficiencyPct: number;
   queuePressurePct: number;
   activeJobId?: string;

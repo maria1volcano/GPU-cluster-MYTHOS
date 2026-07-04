@@ -221,6 +221,8 @@ class ClusterRuntime:
             ok = False
             if rec.job_id and rec.to_rack:
                 ok = self.engine.apply_action("MIGRATE_JOB", rec.job_id, rec.to_rack)
+            if ok:
+                self.latest_frame = self.engine.refresh_frame()
             pending.status = "approved"
             self.decision_log.record(
                 t=pending.frame_t,
@@ -235,10 +237,25 @@ class ClusterRuntime:
             rack_id = rec.from_rack or pred.target.get("id")
             if ok:
                 title = "Incident averted — workload migrated"
-                detail = (
-                    f"Migrated {rec.job_id} from {rec.from_rack} to {rec.to_rack}. "
-                    f"Thermal load shifted off {rec.from_rack}; {rec.to_rack} absorbs the job with headroom."
-                )
+                src = next(
+                    (r for r in self.latest_frame.racks if r.rack_id == rec.from_rack),
+                    None,
+                ) if self.latest_frame else None
+                dst = next(
+                    (r for r in self.latest_frame.racks if r.rack_id == rec.to_rack),
+                    None,
+                ) if self.latest_frame else None
+                if src and dst:
+                    detail = (
+                        f"Migrated {rec.job_id} from {rec.from_rack} to {rec.to_rack}. "
+                        f"Scheduled load is now {src.gpu_demand:.1f} GPU on {rec.from_rack} "
+                        f"and {dst.gpu_demand:.1f} GPU on {rec.to_rack}."
+                    )
+                else:
+                    detail = (
+                        f"Migrated {rec.job_id} from {rec.from_rack} to {rec.to_rack}. "
+                        f"Thermal load shifted off {rec.from_rack}; {rec.to_rack} absorbs the job with headroom."
+                    )
                 self._push_event(
                     detail,
                     event_type="operator_event",
@@ -265,6 +282,14 @@ class ClusterRuntime:
                 )
             self._pending = None
             self.replay_status = "resolved"
+            src_demand = dst_demand = None
+            if ok and self.latest_frame:
+                src_r = next((r for r in self.latest_frame.racks if r.rack_id == rec.from_rack), None)
+                dst_r = next((r for r in self.latest_frame.racks if r.rack_id == rec.to_rack), None)
+                if src_r:
+                    src_demand = round(src_r.gpu_demand, 2)
+                if dst_r:
+                    dst_demand = round(dst_r.gpu_demand, 2)
             return {
                 "success": True,
                 "action": "approved",
@@ -274,6 +299,8 @@ class ClusterRuntime:
                 "jobId": rec.job_id,
                 "fromRack": rec.from_rack,
                 "toRack": rec.to_rack,
+                "fromRackDemandGpus": src_demand,
+                "toRackDemandGpus": dst_demand,
                 "expectedEffect": rec.expected_effect,
                 "timeToImpactMinutes": max(0, round(pred.eta_seconds / 60)),
             }
