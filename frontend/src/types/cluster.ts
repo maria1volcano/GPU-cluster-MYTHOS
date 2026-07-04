@@ -2,6 +2,7 @@ export type RiskLevel = "healthy" | "watch" | "warning" | "critical";
 export type WorkloadType = "inference" | "training" | "batch" | "idle";
 export type ReplayStatus = "idle" | "running" | "paused" | "stress" | "resolved";
 export type RecommendationStatus = "none" | "pending" | "approved" | "overridden" | "averted";
+export type AlertStatus = "pending" | "generating" | "ready" | "skipped" | "failed";
 export type ActionType =
   "migrate_job" | "increase_cooling" | "reduce_load" | "monitor" | "continue_monitoring";
 
@@ -77,6 +78,9 @@ export interface AgentRecommendation {
   explanation: string;
   confidencePct: number;
   signals: AgentSignal[];
+  alertText?: string;
+  alertStatus?: AlertStatus;
+  alertAudioUrl?: string;
 }
 
 export interface OperatorActionEvent {

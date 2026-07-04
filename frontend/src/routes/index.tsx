@@ -39,6 +39,7 @@ import {
   overrideRecommendation,
 } from "@/lib/api";
 import { triggerStressScenario } from "@/lib/api";
+import { useRecommendationAlert } from "@/lib/alertAudio";
 import type {
   AgentRecommendation,
   ClusterState,
@@ -96,6 +97,8 @@ function Dashboard() {
   const state = data?.state ?? null;
   const rec = data?.rec ?? null;
   const events = data?.events ?? [];
+
+  useRecommendationAlert(rec);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["dashboard"] });
 

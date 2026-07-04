@@ -167,3 +167,26 @@ def test_tts_e2e_generates_alert_audio(tts_client):
 def test_alert_audio_404_when_not_ready(client):
     res = client.get("/api/agent/recommendation/rec-missing/alert-audio")
     assert res.status_code == 404
+
+
+def test_frontend_polling_alert_playback_flow(tts_client):
+    """Simulates dashboard polling until alertAudioUrl is ready, then fetches WAV."""
+    client, speaker = tts_client
+    pending = _wait_for_recommendation()
+    rec_id = pending.recommendation.recommendation_id
+    speaker.wait()
+
+    for _ in range(20):
+        res = client.get("/api/agent/recommendation")
+        if res.status_code == 200:
+            body = res.json()
+            if body.get("alertStatus") == "ready" and body.get("alertAudioUrl"):
+                assert body["alertAudioUrl"] == f"/api/agent/recommendation/{rec_id}/alert-audio"
+                audio = client.get(body["alertAudioUrl"])
+                assert audio.status_code == 200
+                assert audio.headers["content-type"] == "audio/wav"
+                assert len(audio.content) > 44
+                return
+        time.sleep(0.05)
+
+    raise AssertionError("Recommendation alert never reached ready state")
