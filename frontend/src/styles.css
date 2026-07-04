@@ -1,0 +1,255 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Mythos 6 — "Control-Room Amber" design system.
+ *
+ * A thermal instrument: warm near-black, a heat-orange primary accent, hairline
+ * keylines instead of glass, and mono numerics. Glow is reserved for CRITICAL.
+ *
+ * Brand tokens live in :root as raw values and are exposed to Tailwind as
+ * utilities (text-heat, bg-surface, border-line, font-mono …) via @theme inline.
+ * The shadcn semantic tokens (--background, --primary …) are re-pointed at the
+ * same palette under .dark so Radix dialogs, the 404 page, and error boundaries
+ * all render on-brand instead of flipping to a light theme.
+ */
+
+@theme inline {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Archivo Expanded", "Archivo", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Brand palette → utilities */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-heat: var(--heat);
+  --color-warn: var(--warn);
+  --color-good: var(--good);
+  --color-watch: var(--watch);
+  --color-crit: var(--crit);
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+  --radius-4xl: 12px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+/* Raw brand values */
+:root {
+  --bg: #0a0a0b;
+  --surface: #141416;
+  --surface-2: #1c1c1f;
+  --ink: #f5f3ee;
+  --ink-dim: #a7a29a;
+  --ink-faint: #8b857b;
+  --line: #2a2a2e;
+  --heat: #ff6b1a;
+  --warn: #ffb200;
+  --good: #34d0a8;
+  --watch: #7f8794;
+  --crit: #ff3b3b;
+
+  --radius: 3px;
+
+  /* shadcn semantic tokens — the app runs dark-only, so light == dark here to
+     avoid any flash-of-light on Radix portals before .dark cascades. */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--heat);
+  --primary-foreground: #0a0a0b;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-dim);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--crit);
+  --destructive-foreground: #0a0a0b;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--heat);
+  --chart-1: var(--heat);
+  --chart-2: var(--good);
+  --chart-3: var(--warn);
+  --chart-4: var(--watch);
+  --chart-5: var(--crit);
+}
+
+.dark {
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--heat);
+  --primary-foreground: #0a0a0b;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-dim);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--crit);
+  --destructive-foreground: #0a0a0b;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--heat);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  /* Visible keyboard focus for every interactive element (low specificity so
+     component styles still win for the resting/hover state). Hard constraint. */
+  :where(button, a, [role="button"], input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--heat);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+
+  /* Mono numerics read as an instrument readout */
+  .font-mono,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "zero";
+  }
+}
+
+/*
+ * Motion — used only to signal meaning (content coming online, a risk
+ * escalating, an active alarm). Fully neutralised for reduced-motion users.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Content rising into place — a brief, one-shot "console coming online" reveal. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.stagger > * {
+  animation: rise 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+.stagger > *:nth-child(3) {
+  animation-delay: 140ms;
+}
+.stagger > *:nth-child(4) {
+  animation-delay: 210ms;
+}
+.stagger > *:nth-child(5) {
+  animation-delay: 280ms;
+}
+.stagger > *:nth-child(6) {
+  animation-delay: 350ms;
+}
+.stagger > *:nth-child(7) {
+  animation-delay: 420ms;
+}
+
+/* Active critical alarm — a slow, calm glow breathe. Not a carnival flash. */
+.alarm-critical {
+  animation: alarm-breathe 2.6s ease-in-out infinite;
+}
+@keyframes alarm-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px #ff3b3b,
+      0 0 48px -16px #ff3b3b,
+      0 24px 80px -30px rgba(0, 0, 0, 0.9);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px #ff3b3b,
+      0 0 84px -4px #ff3b3b,
+      0 24px 80px -30px rgba(0, 0, 0, 0.9);
+  }
+}
+
+/* Faint control-room grid used behind the app */
+.instrument-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
