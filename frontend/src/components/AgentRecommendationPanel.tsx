@@ -68,6 +68,11 @@ export function AgentRecommendationPanel({
               <Volume2 className="h-3 w-3" /> Voice alert ready
             </p>
           )}
+          {rec.alertText && (
+            <p className="mt-2 max-w-xs text-left text-[10px] leading-relaxed text-ink-faint">
+              {rec.alertText}
+            </p>
+          )}
         </div>
       </div>
 

@@ -276,6 +276,8 @@ export async function resetDemo() {
     pushTelemetry({ type: "agent_event", message: "Mock demo reset requested", severity: "watch" });
     return { success: true };
   }
+  const { clearPlayedAlerts } = await import("./alertAudio");
+  clearPlayedAlerts();
   await post("/api/demo/reset");
   return { success: true };
 }

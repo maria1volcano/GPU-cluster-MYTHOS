@@ -7,42 +7,73 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import wave
 from pathlib import Path
 from typing import Optional
 
 from sentinel import config
 from sentinel.models import Recommendation
-from sentinel.predict.schema import Evidence, Prediction
+from sentinel.predict.schema import Evidence, Prediction, THERMAL_THROTTLE
 
 logger = logging.getLogger(__name__)
 
+_ISSUE_LABELS = {
+    THERMAL_THROTTLE: "thermal throttling",
+    "SCHEDULING_BOTTLENECK": "a scheduling bottleneck",
+    "NODE_INSTABILITY": "node instability",
+}
+
+
+def _sanitize_for_speech(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", text.replace("\n", " ").strip())
+    return cleaned
+
 
 def build_alert_text(prediction: Prediction, recommendation: Optional[Recommendation]) -> str:
-    """Short spoken alert for the operator floor."""
-    rack = prediction.target.get("id", "the hot rack")
-    parts = [f"Alert. {rack}"]
+    """Spoken alert tied to the live prediction + agent recommendation (not a static script)."""
+    rack = prediction.target.get("id", "the affected rack")
+    issue = _ISSUE_LABELS.get(prediction.type, "an infrastructure risk")
+    parts = [f"Sentinel alert for {rack}.", f"Detected {issue}."]
 
-    for e in prediction.evidence:
-        if e.slope_per_min is not None and "temp" in e.metric:
-            parts.append(f"is heating at nearly {abs(e.slope_per_min):.0f} degrees per minute")
-            break
+    for evidence in prediction.evidence[:3]:
+        parts.append(_evidence_line(evidence))
 
-    if prediction.type == "THERMAL_THROTTLE":
-        if prediction.eta_seconds <= 0:
-            parts.append("and is already throttling")
-        else:
-            parts.append(f"and will likely throttle in about {prediction.eta_seconds / 60:.0f} minutes")
+    if prediction.eta_seconds <= 0:
+        parts.append("Impact is happening now.")
+    else:
+        mins = max(1, round(prediction.eta_seconds / 60))
+        parts.append(f"Estimated time to impact: about {mins} minutes.")
 
     if recommendation is None:
-        parts.append("No safe migration is available right now.")
-        return ". ".join(parts) + "."
+        parts.append("No safe migration is available right now. Monitor the rack closely.")
+        return _sanitize_for_speech(" ".join(parts))
 
-    parts.append(
-        f"I recommend migrating {recommendation.job_id} to {recommendation.to_rack}. "
-        f"Approve or override."
-    )
-    return ". ".join(parts) + "."
+    if recommendation.justification.strip():
+        parts.append(recommendation.justification.strip())
+    if recommendation.job_id and recommendation.to_rack:
+        parts.append(
+            f"Recommended action: migrate job {recommendation.job_id} "
+            f"from {recommendation.from_rack or rack} to {recommendation.to_rack}."
+        )
+    if recommendation.expected_effect.strip():
+        parts.append(f"Expected effect: {recommendation.expected_effect.strip()}")
+    parts.append("Approve or override in the dashboard.")
+    return _sanitize_for_speech(" ".join(parts))
+
+
+def _evidence_line(evidence: Evidence) -> str:
+    if evidence.slope_per_min is not None and "temp" in evidence.metric:
+        return f"Temperature trend {evidence.slope_per_min:+.1f} degrees per minute."
+    if evidence.metric == "queued_heavy_jobs" and evidence.value is not None:
+        return f"{int(evidence.value)} heavy jobs are queued on this rack."
+    if evidence.current is not None and "temp" in evidence.metric:
+        return f"Current rack temperature {evidence.current:.0f} degrees Celsius."
+    if evidence.value is not None and evidence.metric == "rack_util":
+        return f"Rack utilization is {evidence.value * 100:.0f} percent."
+    if evidence.value is not None:
+        return f"{evidence.metric.replace('_', ' ')} is {evidence.value}."
+    return ""
 
 
 class AlertSpeaker:
@@ -96,6 +127,12 @@ class AlertSpeaker:
         return asyncio.run(self.speak(text, output_wav=output_wav))
 
     def speak_recommendation(
-        self, prediction: Prediction, recommendation: Optional[Recommendation], output_wav: Optional[Path] = None
+        self,
+        prediction: Prediction,
+        recommendation: Optional[Recommendation],
+        output_wav: Optional[Path] = None,
+        *,
+        alert_text: Optional[str] = None,
     ) -> Optional[Path]:
-        return self.speak_sync(build_alert_text(prediction, recommendation), output_wav=output_wav)
+        text = alert_text or build_alert_text(prediction, recommendation)
+        return self.speak_sync(text, output_wav=output_wav)

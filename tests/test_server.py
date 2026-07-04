@@ -24,8 +24,9 @@ class FakeAlertSpeaker:
     def is_configured(self) -> bool:
         return True
 
-    def speak_recommendation(self, prediction, recommendation, output_wav=None):
+    def speak_recommendation(self, prediction, recommendation, output_wav=None, *, alert_text=None):
         self.calls.append(recommendation.recommendation_id)
+        self.last_text = alert_text
         out = Path(output_wav)
         out.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(out), "wb") as wav:
@@ -158,10 +159,12 @@ def test_tts_e2e_generates_alert_audio(tts_client):
 
     speaker.wait()
     assert speaker.calls == [rec_id]
+    assert pending.alert_text
+    assert pending.recommendation.justification in pending.alert_text
 
     rec = client.get("/api/agent/recommendation").json()
     assert rec["alertStatus"] == "ready"
-    assert rec["alertText"]
+    assert rec["alertText"] == pending.alert_text
     assert rec["alertAudioUrl"] == f"/api/agent/recommendation/{rec_id}/alert-audio"
 
     audio = client.get(rec["alertAudioUrl"])

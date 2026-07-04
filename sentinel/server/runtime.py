@@ -302,6 +302,15 @@ class ClusterRuntime:
         return self._alert_dir / f"{safe_id}.wav"
 
     def _queue_tts(self, recommendation_id: str) -> None:
+        with self._lock:
+            pending = self._pending
+            if pending is None or pending.recommendation.recommendation_id != recommendation_id:
+                return
+            if pending.alert_status in ("generating", "ready"):
+                return
+            alert_text = build_alert_text(pending.prediction, pending.recommendation)
+            pending.alert_text = alert_text
+
         if not self._tts_enabled:
             with self._lock:
                 if (
@@ -317,9 +326,6 @@ class ClusterRuntime:
                     self._pending
                     and self._pending.recommendation.recommendation_id == recommendation_id
                 ):
-                    self._pending.alert_text = build_alert_text(
-                        self._pending.prediction, self._pending.recommendation
-                    )
                     self._pending.alert_status = "skipped"
             return
 
@@ -328,14 +334,18 @@ class ClusterRuntime:
                 pending = self._pending
                 if pending is None or pending.recommendation.recommendation_id != recommendation_id:
                     return
+                if pending.alert_status in ("generating", "ready"):
+                    return
                 rec = pending.recommendation
                 pred = pending.prediction
+                text = pending.alert_text or build_alert_text(pred, rec)
                 pending.alert_status = "generating"
-                pending.alert_text = build_alert_text(pred, rec)
                 out = self._alert_wav_path(recommendation_id)
 
             try:
-                wav = self._speaker.speak_recommendation(pred, rec, output_wav=out)
+                wav = self._speaker.speak_recommendation(
+                    pred, rec, output_wav=out, alert_text=text
+                )
                 with self._lock:
                     if (
                         self._pending

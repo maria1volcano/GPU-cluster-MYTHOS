@@ -27,8 +27,27 @@ def test_build_alert_text_includes_rack_and_migration():
     )
     text = build_alert_text(prediction, recommendation)
     assert "rack-00" in text
-    assert "openb-pod-0001" in text
+    assert "too hot" in text
     assert "rack-18" in text
+    assert "thermal throttling" in text
+    assert "openb-pod-0001" in text
+
+
+def test_build_alert_text_without_recommendation():
+    prediction = Prediction(
+        prediction_id="pred-2",
+        type="SCHEDULING_BOTTLENECK",
+        target={"kind": "rack", "id": "rack-03"},
+        eta_seconds=0.0,
+        severity="high",
+        confidence=0.7,
+        evidence=[Evidence(metric="queued_heavy_jobs", value=4.0)],
+        t=200,
+    )
+    text = build_alert_text(prediction, None)
+    assert "rack-03" in text
+    assert "scheduling bottleneck" in text
+    assert "4 heavy jobs" in text
 
 
 def test_alert_speaker_skips_without_api_key():
