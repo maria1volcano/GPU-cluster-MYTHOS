@@ -1,4 +1,39 @@
-# GPU Cluster Ops Agent
+# Mythos 6 - GPU Cluster Ops Agent
+
+This repository is now the combined Mythos 6 monorepo. It contains the Python backend/data/agent work at the root and the Vite React operator dashboard in `frontend/`.
+
+## Structure
+
+- `frontend/` - Vite React frontend operator dashboard
+- `sentinel/` - backend replay, prediction, agent, TTS, and decision-log modules
+- `fixtures/` - sample telemetry frames for frontend/backend contracts
+- `tests/` - backend tests
+- `tools/` - backend utility scripts
+- `integrate.md` - frontend/backend integration contract
+
+## Run backend
+
+```bash
+pip install -r requirements.txt
+python -m sentinel.demo
+```
+
+Additional backend checks:
+
+```bash
+python -m sentinel.engine
+pytest
+```
+
+## Run frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+See [integrate.md](./integrate.md) for the frontend/backend API contract, required endpoints, and demo fallback settings.
 
 **GPU Cluster Ops Agent** is an AI-powered GPU cluster operations dashboard built for the **Crusoe track**. It monitors a live GPU cluster stream, predicts operational risks before they impact workloads, and gives operators clear recommendations they can approve, override, or question.
 

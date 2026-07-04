@@ -29,3 +29,15 @@ decision_log.jsonl
 sentinel_state.json
 alert.wav
 .worktrees/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.output/
+frontend/.wrangler/
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
