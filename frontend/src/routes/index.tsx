@@ -38,7 +38,7 @@ import {
   getClusterState,
   overrideRecommendation,
 } from "@/lib/api";
-import { triggerStressScenario, pushTelemetry } from "@/lib/mockCluster";
+import { triggerStressScenario } from "@/lib/api";
 import type {
   AgentRecommendation,
   ClusterState,
@@ -146,13 +146,7 @@ function Dashboard() {
   };
 
   const startStress = () => {
-    triggerStressScenario();
-    pushTelemetry({
-      type: "agent_event",
-      message: "Stress scenario injected — cluster load rising on R-07",
-      severity: "warning",
-    });
-    refresh();
+    void triggerStressScenario().then(() => refresh());
   };
 
   return (
