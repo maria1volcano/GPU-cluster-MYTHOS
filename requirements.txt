@@ -1,2 +1,4 @@
 pytest>=8
-
+openai>=1.40.0
+python-dotenv>=1.0.0
+gradium>=0.6.0

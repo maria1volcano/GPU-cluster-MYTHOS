@@ -24,6 +24,8 @@ __all__ = [
     "TWIN_ENABLED", "TWIN_HORIZON_TICKS", "TWIN_SUSTAINED_TICKS", "TWIN_MIN_PEAK_THROTTLING",
     "DURATION_PRIOR_MIN", "DURATION_PRIOR_DEFAULT_MIN",
     "BOTTLENECK_PRESSURE_HIGH_GPU_MIN", "BOTTLENECK_PRESSURE_CRIT_GPU_MIN",
+    "effective_lead_time_s", "effective_bottleneck_queued_heavy_min",
+    "effective_bottleneck_rack_util_min",
 ]
 
 # --- Trend estimator + ETA method (FR-2) -------------------------------------
@@ -110,3 +112,19 @@ TWIN_MIN_PEAK_THROTTLING = 5   # only treat as an incident if projected peak >= 
 # same prediction_id + eta instead of emitting a new alert every tick. Close the
 # episode after this many consecutive quiet ticks so a later recurrence is new.
 EPISODE_COOLDOWN_TICKS = 3
+
+
+def effective_lead_time_s() -> float:
+    """M7: persisted override from OverrideLearner, else foundation default."""
+    from sentinel.config import Thresholds
+    return Thresholds.load().thermal_throttle.lead_time_seconds
+
+
+def effective_bottleneck_queued_heavy_min() -> int:
+    from sentinel.config import Thresholds
+    return Thresholds.load().scheduling_bottleneck.queued_heavy_threshold
+
+
+def effective_bottleneck_rack_util_min() -> float:
+    from sentinel.config import Thresholds
+    return Thresholds.load().scheduling_bottleneck.util_threshold
