@@ -254,7 +254,7 @@ Actual structure may vary as the project evolves.
 
 ## Team
 
-- **Marcy** - Frontend UX/UI, operator dashboard, integration documentation
+- **Omama** - Frontend UX/UI, operator dashboard, integration documentation
 - **Omar** - Data ingestion, stream replay, prediction model, deployment
 - **Parv** - Agent loop, tool calls, Crusoe Managed Inference integration
 - **Anish** - Agent loop, tool calls, Crusoe Managed Inference integration
