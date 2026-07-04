@@ -25,12 +25,14 @@ from sentinel.predict.config import (
     DURATION_PRIOR_DEFAULT_MIN,
     DURATION_PRIOR_MIN,
     ETA_METHOD,
-    LEAD_TIME_S,
     MIN_CONFIDENCE,
     MIN_SLOPE_C_PER_S,
     SEVERITY_CRITICAL_ETA_S,
     SEVERITY_HIGH_ETA_S,
     THROTTLING_GPUS_IMMINENT,
+    effective_bottleneck_queued_heavy_min,
+    effective_bottleneck_rack_util_min,
+    effective_lead_time_s,
 )
 from sentinel.predict.schema import (
     NODE_INSTABILITY,
@@ -105,7 +107,7 @@ class ThermalThrottlePredictor:
         else:
             return None
 
-        if eta >= LEAD_TIME_S:
+        if eta >= effective_lead_time_s():
             return None  # far enough out that it is not actionable yet
 
         # Confidence: trend fit quality + corroboration by observed throttling.
@@ -152,7 +154,7 @@ class SchedulingBottleneckPredictor:
     def predict(self, t: int, rack: Dict, trend, queued_pods: Optional[List[Dict]] = None) -> Optional[Prediction]:
         queued_heavy = rack.get("queued_heavy", 0)
         util = rack.get("util", 0.0)
-        if queued_heavy < BOTTLENECK_QUEUED_HEAVY_MIN or util < BOTTLENECK_RACK_UTIL_MIN:
+        if queued_heavy < effective_bottleneck_queued_heavy_min() or util < effective_bottleneck_rack_util_min():
             return None
 
         throttling = rack.get("throttling_gpus", 0)
@@ -171,9 +173,9 @@ class SchedulingBottleneckPredictor:
 
         evidence = [
             Evidence(metric="queued_heavy_jobs", value=float(queued_heavy),
-                     threshold=float(BOTTLENECK_QUEUED_HEAVY_MIN)),
+                     threshold=float(effective_bottleneck_queued_heavy_min())),
             Evidence(metric="rack_util", value=round(util, 3),
-                     threshold=BOTTLENECK_RACK_UTIL_MIN),
+                     threshold=effective_bottleneck_rack_util_min()),
             Evidence(metric="queued_pods", value=float(rack.get("queued_pods", queued_heavy))),
             Evidence(metric="throttling_gpus", value=float(throttling)),
         ]

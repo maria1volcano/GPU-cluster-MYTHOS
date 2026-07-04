@@ -22,5 +22,10 @@ env/
 .DS_Store
 *.swp
 
-# Secrets (LLM keys for M4 — never commit)
+# Secrets (LLM / TTS keys — never commit)
 .env
+*.wav
+decision_log.jsonl
+sentinel_state.json
+alert.wav
+.worktrees/
