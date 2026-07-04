@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
 
+from sentinel import config
 from sentinel.agent.agent import Agent
 from sentinel.agent.recommender import Recommender
 from sentinel.config import DEMO_WINDOW, SPEEDUP, TICK_TRACE_S, Thresholds
@@ -25,6 +26,7 @@ from sentinel.server.mappers import (
     telemetry_event,
 )
 from sentinel.telemetry.sample import TelemetryFrame
+from sentinel.tts import AlertSpeaker, build_alert_text
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +40,23 @@ class PendingRecommendation:
     prediction: Prediction
     frame_t: int
     status: str = "pending"
+    alert_text: Optional[str] = None
+    alert_wav: Optional[Path] = None
+    alert_status: str = "pending"
 
 
 class ClusterRuntime:
     """Thread-safe singleton backing the FastAPI routes."""
 
-    def __init__(self, *, log_path: Optional[Path] = None, state_path: Optional[Path] = None):
+    def __init__(
+        self,
+        *,
+        log_path: Optional[Path] = None,
+        state_path: Optional[Path] = None,
+        tts_enabled: Optional[bool] = None,
+        alert_speaker: Optional[AlertSpeaker] = None,
+        alert_dir: Optional[Path] = None,
+    ):
         self._lock = threading.RLock()
         self.engine = Engine()
         self.thresholds = Thresholds.load(state_path) if state_path else Thresholds.load()
@@ -52,6 +65,11 @@ class ClusterRuntime:
         self._refresh_agent()
         self.decision_log = DecisionLog(log_path) if log_path else DecisionLog()
         self.learner = OverrideLearner(self.decision_log, self.thresholds)
+
+        self._tts_enabled = config.SENTINEL_TTS_ENABLED if tts_enabled is None else tts_enabled
+        self._speaker = alert_speaker or AlertSpeaker()
+        self._alert_dir = Path(alert_dir or config.ALERT_AUDIO_DIR)
+        self._alert_dir.mkdir(parents=True, exist_ok=True)
 
         self.replay_status = "idle"
         self._pause = threading.Event()
@@ -150,11 +168,19 @@ class ClusterRuntime:
         with self._lock:
             if self._pending is None or self._pending.status != "pending":
                 return None
-            return recommendation_to_agent(
-                self._pending.recommendation,
-                self._pending.prediction,
-                status=self._pending.status,
-            )
+            return self._pending_to_agent(self._pending)
+
+    def alert_audio_path(self, recommendation_id: str) -> Optional[Path]:
+        with self._lock:
+            if (
+                self._pending is None
+                or self._pending.recommendation.recommendation_id != recommendation_id
+            ):
+                return None
+            if self._pending.alert_status != "ready" or self._pending.alert_wav is None:
+                return None
+            path = self._pending.alert_wav
+            return path if path.exists() else None
 
     def telemetry_events(self) -> List[Dict[str, Any]]:
         with self._lock:
@@ -242,9 +268,91 @@ class ClusterRuntime:
                 severity="watch",
                 rack_id=rec.from_rack,
             )
-            return recommendation_to_agent(rec, pending.prediction, status=pending.status)
+            return self._pending_to_agent(pending)
 
     # --- internal ------------------------------------------------------------
+
+    def _pending_to_agent(self, pending: PendingRecommendation) -> Dict[str, Any]:
+        rec_id = pending.recommendation.recommendation_id
+        audio_url = (
+            f"/api/agent/recommendation/{rec_id}/alert-audio"
+            if pending.alert_status == "ready" and pending.alert_wav is not None
+            else None
+        )
+        return recommendation_to_agent(
+            pending.recommendation,
+            pending.prediction,
+            status=pending.status,
+            alert_text=pending.alert_text,
+            alert_status=pending.alert_status,
+            alert_audio_url=audio_url,
+        )
+
+    def _alert_wav_path(self, recommendation_id: str) -> Path:
+        safe_id = recommendation_id.replace("/", "_")
+        return self._alert_dir / f"{safe_id}.wav"
+
+    def _queue_tts(self, recommendation_id: str) -> None:
+        if not self._tts_enabled:
+            with self._lock:
+                if (
+                    self._pending
+                    and self._pending.recommendation.recommendation_id == recommendation_id
+                ):
+                    self._pending.alert_status = "skipped"
+            return
+
+        if not self._speaker.is_configured:
+            with self._lock:
+                if (
+                    self._pending
+                    and self._pending.recommendation.recommendation_id == recommendation_id
+                ):
+                    self._pending.alert_text = build_alert_text(
+                        self._pending.prediction, self._pending.recommendation
+                    )
+                    self._pending.alert_status = "skipped"
+            return
+
+        def _run() -> None:
+            with self._lock:
+                pending = self._pending
+                if pending is None or pending.recommendation.recommendation_id != recommendation_id:
+                    return
+                rec = pending.recommendation
+                pred = pending.prediction
+                pending.alert_status = "generating"
+                pending.alert_text = build_alert_text(pred, rec)
+                out = self._alert_wav_path(recommendation_id)
+
+            try:
+                wav = self._speaker.speak_recommendation(pred, rec, output_wav=out)
+                with self._lock:
+                    if (
+                        self._pending
+                        and self._pending.recommendation.recommendation_id == recommendation_id
+                    ):
+                        self._pending.alert_wav = wav
+                        self._pending.alert_status = "ready" if wav else "failed"
+                if wav:
+                    self._push_event(
+                        "Voice alert ready for operator",
+                        event_type="agent_event",
+                        severity="watch",
+                        rack_id=rec.from_rack,
+                    )
+            except Exception:
+                logger.exception("TTS failed for recommendation %s", recommendation_id)
+                with self._lock:
+                    if (
+                        self._pending
+                        and self._pending.recommendation.recommendation_id == recommendation_id
+                    ):
+                        self._pending.alert_status = "failed"
+
+        threading.Thread(
+            target=_run, daemon=True, name=f"tts-{recommendation_id}"
+        ).start()
 
     def _require_pending(self, recommendation_id: str) -> PendingRecommendation:
         if self._pending is None or self._pending.recommendation.recommendation_id != recommendation_id:
@@ -300,6 +408,7 @@ class ClusterRuntime:
                 rack_id=rack_id,
                 t=frame.t,
             )
+            self._queue_tts(rec.recommendation_id)
             break
 
     def step_once(self) -> TelemetryFrame:

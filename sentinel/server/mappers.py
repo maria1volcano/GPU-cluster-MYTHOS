@@ -182,7 +182,13 @@ def _evidence_to_signals(evidence: List[Evidence]) -> List[Dict[str, Any]]:
 
 
 def recommendation_to_agent(
-    rec: Recommendation, prediction: Prediction, status: str = "pending"
+    rec: Recommendation,
+    prediction: Prediction,
+    status: str = "pending",
+    *,
+    alert_text: Optional[str] = None,
+    alert_status: Optional[str] = None,
+    alert_audio_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     issue_map = {
         THERMAL_THROTTLE: "thermal_throttling",
@@ -191,7 +197,7 @@ def recommendation_to_agent(
     }
     rack_id = prediction.target.get("id", rec.from_rack or "rack-00")
     risk_score = min(100, max(35, int(60 + prediction.confidence * 40)))
-    return {
+    payload: Dict[str, Any] = {
         "id": rec.recommendation_id,
         "createdAt": _iso_now(),
         "status": status,
@@ -210,6 +216,13 @@ def recommendation_to_agent(
         "confidencePct": round(prediction.confidence * 100),
         "signals": _evidence_to_signals(rec.evidence),
     }
+    if alert_text:
+        payload["alertText"] = alert_text
+    if alert_status:
+        payload["alertStatus"] = alert_status
+    if alert_audio_url:
+        payload["alertAudioUrl"] = alert_audio_url
+    return payload
 
 
 def decision_entry_to_frontend(entry: Dict[str, Any]) -> Dict[str, Any]:

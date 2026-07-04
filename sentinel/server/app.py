@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from sentinel.server.runtime import get_runtime
@@ -73,6 +74,14 @@ def why_recommendation(recommendation_id: str) -> Dict[str, Any]:
         return get_runtime().explain_recommendation(recommendation_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+
+
+@app.get("/api/agent/recommendation/{recommendation_id}/alert-audio")
+def get_alert_audio(recommendation_id: str):
+    path = get_runtime().alert_audio_path(recommendation_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Alert audio not ready")
+    return FileResponse(path, media_type="audio/wav", filename=path.name)
 
 
 @app.get("/api/telemetry/events")

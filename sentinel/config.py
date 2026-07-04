@@ -80,6 +80,10 @@ GRADIUM_VOICE_ID = os.environ.get("GRADIUM_VOICE_ID", "LFZvm12tW_z0xfGo")
 GRADIUM_TTS_SPEED = float(os.environ.get("GRADIUM_TTS_SPEED", "1.8"))
 GRADIUM_OUTPUT_WAV = Path(os.environ.get("GRADIUM_OUTPUT_WAV", REPO_ROOT / "alert.wav"))
 
+# --- M5 server TTS -----------------------------------------------------------
+SENTINEL_TTS_ENABLED = os.environ.get("SENTINEL_TTS_ENABLED", "true").lower() in ("1", "true", "yes")
+ALERT_AUDIO_DIR = Path(os.environ.get("SENTINEL_ALERT_AUDIO_DIR", REPO_ROOT / "alerts"))
+
 # --- Decision log / learning state (M6/M7) ------------------------------------
 DECISION_LOG_PATH = Path(os.environ.get("SENTINEL_DECISION_LOG", REPO_ROOT / "decision_log.jsonl"))
 STATE_PATH = Path(os.environ.get("SENTINEL_STATE_PATH", REPO_ROOT / "sentinel_state.json"))

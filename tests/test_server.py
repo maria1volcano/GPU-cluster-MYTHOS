@@ -1,11 +1,43 @@
 """HTTP server tests — M5 FastAPI layer."""
 from __future__ import annotations
 
+import threading
+import time
+import wave
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from sentinel.server.app import app
-from sentinel.server.runtime import reset_runtime_for_tests
+from sentinel.server.runtime import get_runtime, reset_runtime_for_tests
+
+
+class FakeAlertSpeaker:
+    """Deterministic TTS stub for server integration tests."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self._done = threading.Event()
+
+    @property
+    def is_configured(self) -> bool:
+        return True
+
+    def speak_recommendation(self, prediction, recommendation, output_wav=None):
+        self.calls.append(recommendation.recommendation_id)
+        out = Path(output_wav)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(out), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(22050)
+            wav.writeframes(b"\x00\x00" * 100)
+        self._done.set()
+        return out
+
+    def wait(self, timeout: float = 5.0) -> None:
+        assert self._done.wait(timeout), "TTS did not complete in time"
 
 
 @pytest.fixture()
@@ -15,6 +47,33 @@ def client(tmp_path):
     reset_runtime_for_tests(log_path=log_path, state_path=state_path)
     with TestClient(app) as c:
         yield c
+
+
+def _wait_for_recommendation(timeout: float = 30.0):
+    runtime = get_runtime()
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        runtime.step_once()
+        if runtime._pending is not None:
+            return runtime._pending
+    raise AssertionError("No recommendation fired within replay window")
+
+
+@pytest.fixture()
+def tts_client(tmp_path):
+    log_path = tmp_path / "decisions.jsonl"
+    state_path = tmp_path / "state.json"
+    alert_dir = tmp_path / "alerts"
+    speaker = FakeAlertSpeaker()
+    reset_runtime_for_tests(
+        log_path=log_path,
+        state_path=state_path,
+        tts_enabled=True,
+        alert_speaker=speaker,
+        alert_dir=alert_dir,
+    )
+    with TestClient(app) as c:
+        yield c, speaker
 
 
 def test_health(client):
@@ -72,3 +131,39 @@ def test_step_once_produces_frame(client):
     frame = get_runtime().step_once()
     assert frame.tick >= 0
     assert len(frame.racks) > 0
+
+
+def test_tts_skipped_without_api_key(client):
+    runtime = get_runtime()
+    pending = _wait_for_recommendation()
+    time.sleep(0.2)
+    assert pending.alert_text is not None
+    assert pending.alert_status == "skipped"
+    assert runtime.alert_audio_path(pending.recommendation.recommendation_id) is None
+
+
+def test_tts_e2e_generates_alert_audio(tts_client):
+    client, speaker = tts_client
+    pending = _wait_for_recommendation()
+    rec_id = pending.recommendation.recommendation_id
+
+    speaker.wait()
+    assert speaker.calls == [rec_id]
+
+    rec = client.get("/api/agent/recommendation").json()
+    assert rec["alertStatus"] == "ready"
+    assert rec["alertText"]
+    assert rec["alertAudioUrl"] == f"/api/agent/recommendation/{rec_id}/alert-audio"
+
+    audio = client.get(rec["alertAudioUrl"])
+    assert audio.status_code == 200
+    assert audio.headers["content-type"] == "audio/wav"
+    assert len(audio.content) > 44
+
+    events = client.get("/api/telemetry/events").json()
+    assert any("Voice alert ready" in e["message"] for e in events)
+
+
+def test_alert_audio_404_when_not_ready(client):
+    res = client.get("/api/agent/recommendation/rec-missing/alert-audio")
+    assert res.status_code == 404
