@@ -28,6 +28,7 @@ env/
 decision_log.jsonl
 sentinel_state.json
 alert.wav
+alerts/
 .worktrees/
 
 # Frontend

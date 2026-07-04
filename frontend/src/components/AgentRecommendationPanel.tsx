@@ -1,7 +1,15 @@
 import type { AgentRecommendation } from "@/types/cluster";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
 import { innerGlassPanel, strongGlassPanel } from "@/lib/glassStyles";
-import { ArrowRight, Check, HelpCircle, ShieldOff, Sparkles, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  HelpCircle,
+  ShieldOff,
+  Sparkles,
+  TrendingUp,
+  Volume2,
+} from "lucide-react";
 
 export function AgentRecommendationPanel({
   rec,
@@ -50,6 +58,16 @@ export function AgentRecommendationPanel({
           <p className="text-xs text-ink-dim">
             {riskLabel(rec.riskLevel)} · confidence {rec.confidencePct}%
           </p>
+          {rec.alertStatus === "generating" && (
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+              Generating voice alert…
+            </p>
+          )}
+          {rec.alertStatus === "ready" && rec.alertAudioUrl && (
+            <p className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-heat">
+              <Volume2 className="h-3 w-3" /> Voice alert ready
+            </p>
+          )}
         </div>
       </div>
 
