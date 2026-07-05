@@ -208,11 +208,39 @@ def merge_map_racks_preserving_activity(
     return merged
 
 
+def _evidence_value(prediction: Prediction, metric: str) -> Optional[float]:
+    for e in prediction.evidence:
+        if e.metric == metric and e.value is not None:
+            return float(e.value)
+    return None
+
+
 def _time_to_impact_minutes(prediction: Prediction) -> int:
-    """Operator-facing ETA — at the queue peak both predictors often return eta=0."""
+    """Operator-facing impact window, from REAL signals only: a positive
+    predictor eta (approach-from-below countdown) or the digital twin's
+    do-nothing projection window (an already-throttling rack worsens within
+    it). The last-resort LEAD_TIME_S default only applies to engine-less
+    predictions (fixtures/WS replays) that carry no twin evidence."""
     if prediction.eta_seconds > 30:
         return max(1, round(prediction.eta_seconds / 60))
+    horizon_min = _evidence_value(prediction, "projected_horizon_min")
+    if horizon_min:
+        return max(1, round(horizon_min))
     return max(1, round(LEAD_TIME_S / 60))
+
+
+def prediction_lead_seconds(prediction: Prediction) -> float:
+    """Decision-log KPI (PRD §8): seconds between this alert and the modeled
+    incident, from real signals only — a positive predictor eta, else the
+    twin's projected-worsening window. Returns the raw eta (possibly 0.0)
+    only when no forward-looking signal exists at all, so the log never
+    contains a fabricated number."""
+    if prediction.eta_seconds > 30:
+        return float(prediction.eta_seconds)
+    horizon_min = _evidence_value(prediction, "projected_horizon_min")
+    if horizon_min:
+        return float(horizon_min) * 60.0
+    return float(prediction.eta_seconds)
 
 
 def _slope_for_rack(rack_id: str, trends: Optional[Dict]) -> float:

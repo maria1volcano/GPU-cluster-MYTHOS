@@ -53,31 +53,45 @@ class Agent:
 
     @staticmethod
     def _template_justification(prediction: Prediction, candidate: Candidate) -> str:
-        bits = []
-        for e in prediction.evidence:
-            if e.slope_per_min is not None and "temp" in e.metric:
-                bits.append(f"{prediction.target['id']} is heating ~{e.slope_per_min:.1f}°C/min")
-            elif e.metric == "queued_heavy_jobs" and e.value is not None:
-                bits.append(f"{int(e.value)} heavy jobs queued")
-            elif e.metric == "queued_heavy_gpu_minutes" and e.value is not None:
-                bits.append(f"{e.value:.0f} GPU-minutes of heavy work queued")
-            elif e.metric == "rack_util" and e.value is not None:
-                bits.append(f"rack utilization at {e.value * 100:.0f}%")
-            elif e.metric == "xid_errors" and e.value:
-                bits.append(f"{int(e.value)} XID driver fault(s) this tick")
-            elif e.metric == "ecc_errors_volatile" and e.value:
-                bits.append(f"{int(e.value)} volatile ECC error(s)")
-            elif e.metric == "hw_thermal_gpus" and e.value:
-                bits.append(f"{int(e.value)} GPU(s) in hardware thermal limit")
-            elif e.metric == "clock_derated_gpus" and e.value:
-                bits.append(f"{int(e.value)} GPU(s) with derated clocks")
+        by_metric = {e.metric: e for e in prediction.evidence}
 
+        def val(metric: str):
+            e = by_metric.get(metric)
+            return e.value if e is not None else None
+
+        bits = []
+        temp = by_metric.get("rack_temp_c")
+        if temp is not None and temp.slope_per_min is not None:
+            # Only narrate a slope that is actually moving; a saturated rack is
+            # "pinned at the line", never "heating at 0.0°C/min".
+            if abs(temp.slope_per_min) >= 0.35:
+                bits.append(f"heating ~{temp.slope_per_min:+.1f}°C/min")
+            elif (temp.current is not None and temp.threshold
+                  and temp.current >= temp.threshold - 1.0):
+                bits.append(f"{temp.current:.0f}°C, pinned at the "
+                            f"{temp.threshold:.0f}°C throttle line")
+        queued_heavy = val("queued_heavy_jobs")
+        if queued_heavy:
+            bits.append(f"{int(queued_heavy)} more heavy jobs queued")
+        for metric, fmt in (
+            ("queued_heavy_gpu_minutes", "{:.0f} GPU-minutes of heavy work inbound"),
+            ("xid_errors", "{:.0f} XID driver fault(s) this tick"),
+            ("ecc_errors_volatile", "{:.0f} volatile ECC error(s)"),
+            ("hw_thermal_gpus", "{:.0f} GPU(s) in hardware thermal limit"),
+            ("clock_derated_gpus", "{:.0f} GPU(s) with derated clocks"),
+        ):
+            v = val(metric)
+            if v:
+                bits.append(fmt.format(float(v)))
+
+        throttling = val("throttling_gpus") or 0
         if prediction.type == "THERMAL_THROTTLE":
-            status = (
-                "is already throttling"
-                if prediction.eta_seconds <= 0
-                else f"will likely throttle in ~{prediction.eta_seconds / 60:.0f} min"
-            )
+            if prediction.eta_seconds <= 0 and throttling:
+                status = f"is throttling now — {int(throttling)} GPUs capped"
+            elif prediction.eta_seconds <= 0:
+                status = "is at its throttle line"
+            else:
+                status = f"will likely throttle in ~{max(1, round(prediction.eta_seconds / 60))} min"
         elif prediction.type == "SCHEDULING_BOTTLENECK":
             status = "is becoming a scheduling bottleneck"
         elif prediction.type == "NODE_INSTABILITY":
@@ -86,10 +100,23 @@ class Agent:
         else:
             status = "needs attention"
 
+        # Forward-looking clause from the digital twin's do-nothing projection —
+        # this, not a fabricated ETA, is the "unless we act" number.
+        projected = ""
+        peak = val("projected_peak_throttling_gpus")
+        horizon = val("projected_horizon_min")
+        if peak and horizon:
+            if peak > throttling:
+                projected = (f"Projected to worsen to {int(peak)} throttling GPUs "
+                             f"over the next ~{horizon:.0f} min unless we act. ")
+            else:
+                projected = (f"Projected to stay throttled ({int(peak)} GPUs) "
+                             f"for the next ~{horizon:.0f} min unless we act. ")
+
         target_label = prediction.target.get("rack_id") or prediction.target.get("id", "rack")
         trend = f" ({', '.join(bits)})" if bits else ""
         return (
-            f"{target_label} {status}{trend}. "
+            f"{target_label} {status}{trend}. {projected}"
             f"{candidate.to_rack} has {candidate.to_rack_free_capacity_frac * 100:.0f}% free capacity and "
             f"{candidate.to_rack_thermal_headroom_c:.0f}°C of thermal headroom, so migrating "
             f"{candidate.job_id} there should resolve it."

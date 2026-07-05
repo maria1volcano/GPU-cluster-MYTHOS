@@ -111,7 +111,10 @@ TWIN_MIN_PEAK_THROTTLING = 5   # only treat as an incident if projected peak >= 
 # One incident = one episode. While a (type, target) keeps firing, update the
 # same prediction_id + eta instead of emitting a new alert every tick. Close the
 # episode after this many consecutive quiet ticks so a later recurrence is new.
-EPISODE_COOLDOWN_TICKS = 3
+# 20 ticks = 10 sim-minutes: queued_heavy oscillating around its threshold no
+# longer splits one bottleneck incident into ~16 alert cards during the demo
+# window (measured with the old value of 3).
+EPISODE_COOLDOWN_TICKS = 20
 
 
 def effective_lead_time_s() -> float:
