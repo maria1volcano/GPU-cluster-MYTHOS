@@ -89,8 +89,9 @@ const Rack = memo(function Rack({
     }
   });
 
-  const px = rack.position?.x ?? 0;
-  const pz = rack.position?.z ?? 0;
+  const rackSpacing = 1.55;
+  const px = (rack.position?.x ?? 0) * rackSpacing;
+  const pz = (rack.position?.z ?? 0) * rackSpacing;
   const slotYs = [0.55, 0.15, -0.25, -0.65];
 
   return R3F(
@@ -210,8 +211,8 @@ export function RackMapScene({
         enablePan={false}
         minPolarAngle={Math.PI / 5}
         maxPolarAngle={Math.PI / 2.15}
-        minDistance={7}
-        maxDistance={14}
+        minDistance={8}
+        maxDistance={18}
         enableDamping
         dampingFactor={0.08}
       />

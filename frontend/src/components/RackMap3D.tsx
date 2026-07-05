@@ -30,7 +30,7 @@ export const RackMap3D = memo(function RackMap3D({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.03] via-transparent to-transparent" />
         <Canvas
           shadows
-          camera={{ position: [0, 6.5, 9], fov: 42 }}
+          camera={{ position: [0, 7, 11], fov: 42 }}
           dpr={[1, 1.5]}
           gl={{ antialias: true, powerPreference: "high-performance" }}
         >
