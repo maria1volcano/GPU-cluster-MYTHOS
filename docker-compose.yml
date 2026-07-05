@@ -3,16 +3,10 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
+    env_file:
+      - path: .env
+        required: false
     environment:
-      GRADIUM_API_KEY: ${GRADIUM_API_KEY:-}
-      GRADIUM_VOICE_ID: ${GRADIUM_VOICE_ID:-LFZvm12tW_z0xfGo}
-      GRADIUM_TTS_SPEED: ${GRADIUM_TTS_SPEED:-1.8}
-      CRUSOE_BASE_URL: ${CRUSOE_BASE_URL:-https://api.inference.crusoecloud.com/v1/}
-      CRUSOE_API_KEY: ${CRUSOE_API_KEY:-}
-      CRUSOE_MODEL: ${CRUSOE_MODEL:-nvidia/NVIDIA-Nemotron-3-Ultra-550B}
-      CRUSOE_TIMEOUT_SECONDS: ${CRUSOE_TIMEOUT_SECONDS:-5}
-      SENTINEL_TTS_ENABLED: ${SENTINEL_TTS_ENABLED:-true}
-      SENTINEL_TTS_OPERATOR_ACTIONS: ${SENTINEL_TTS_OPERATOR_ACTIONS:-true}
       SENTINEL_DECISION_LOG: /app/data/decision_log.jsonl
       SENTINEL_STATE_PATH: /app/data/sentinel_state.json
       SENTINEL_ALERT_AUDIO_DIR: /app/data/alerts
