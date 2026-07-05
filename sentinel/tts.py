@@ -7,42 +7,138 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import wave
 from pathlib import Path
 from typing import Optional
 
 from sentinel import config
 from sentinel.models import Recommendation
-from sentinel.predict.schema import Evidence, Prediction
+from sentinel.predict.schema import Evidence, Prediction, THERMAL_THROTTLE
 
 logger = logging.getLogger(__name__)
 
+_ISSUE_LABELS = {
+    THERMAL_THROTTLE: "thermal throttling",
+    "SCHEDULING_BOTTLENECK": "a scheduling bottleneck",
+    "NODE_INSTABILITY": "node instability",
+}
+
+
+def _normalize_units_for_speech(text: str) -> str:
+    """Replace symbols/abbreviations TTS misreads (e.g. °C → 'degrees Celsius')."""
+    out = text
+    out = re.sub(r"°\s*C\s*/\s*min", " degrees Celsius per minute", out, flags=re.IGNORECASE)
+    out = re.sub(r"(-?\d+(?:\.\d+)?)\s*°\s*C", r"\1 degrees Celsius", out, flags=re.IGNORECASE)
+    out = re.sub(r"°\s*C", " degrees Celsius", out, flags=re.IGNORECASE)
+    # Bare "84 C" / "84C" temperature shorthand (not rack ids like rack-00).
+    out = re.sub(
+        r"(?<![A-Za-z0-9-])(-?\d+(?:\.\d+)?)\s*C(?=\s|[,.;:!?]|$)",
+        r"\1 degrees Celsius",
+        out,
+    )
+    out = out.replace("°", " degrees ")
+    out = re.sub(r"\bdeg(?:rees)?\s+C\b", "degrees Celsius", out, flags=re.IGNORECASE)
+    out = re.sub(r"\btemp_c\b", "temperature", out, flags=re.IGNORECASE)
+    return out
+
+
+def _sanitize_for_speech(text: str) -> str:
+    cleaned = _normalize_units_for_speech(text.replace("\n", " "))
+    cleaned = re.sub(r"\s+", " ", cleaned.strip())
+    return cleaned
+
 
 def build_alert_text(prediction: Prediction, recommendation: Optional[Recommendation]) -> str:
-    """Short spoken alert for the operator floor."""
-    rack = prediction.target.get("id", "the hot rack")
-    parts = [f"Alert. {rack}"]
-
-    for e in prediction.evidence:
-        if e.slope_per_min is not None and "temp" in e.metric:
-            parts.append(f"is heating at nearly {abs(e.slope_per_min):.0f} degrees per minute")
-            break
-
-    if prediction.type == "THERMAL_THROTTLE":
-        if prediction.eta_seconds <= 0:
-            parts.append("and is already throttling")
-        else:
-            parts.append(f"and will likely throttle in about {prediction.eta_seconds / 60:.0f} minutes")
+    """Short spoken alert — issue plus the chosen migration action only."""
+    rack = prediction.target.get("rack_id") or prediction.target.get("id", "the rack")
+    issue = _ISSUE_LABELS.get(prediction.type, "an infrastructure risk")
 
     if recommendation is None:
-        parts.append("No safe migration is available right now.")
-        return ". ".join(parts) + "."
+        return _sanitize_for_speech(f"Sentinel alert. {issue} on {rack}. Monitor the rack.")
 
-    parts.append(
-        f"I recommend migrating {recommendation.job_id} to {recommendation.to_rack}. "
-        f"Approve or override."
+    job = recommendation.job_id or "the workload"
+    src = recommendation.from_rack or rack
+    dest = recommendation.to_rack or "a cooler rack"
+    return _sanitize_for_speech(
+        f"Sentinel alert. {issue} on {src}. Recommended action: migrate {job} to {dest}."
     )
-    return ". ".join(parts) + "."
+
+
+def build_operator_action_text(
+    action: str,
+    *,
+    detail: str,
+    job_id: Optional[str] = None,
+    from_rack: Optional[str] = None,
+    to_rack: Optional[str] = None,
+    reason: Optional[str] = None,
+) -> str:
+    """Short spoken confirmation after approve or override (detail is UI-only)."""
+    if action == "approved":
+        if job_id and from_rack and to_rack:
+            spoken = f"Approved. Migrating {job_id} to {to_rack}."
+        elif job_id:
+            spoken = f"Approved. Applying migration for {job_id}."
+        else:
+            spoken = "Approved. Migration applied."
+    elif action == "overridden":
+        if reason and reason.strip():
+            brief = reason.strip()
+            if len(brief) > 72:
+                brief = f"{brief[:69]}..."
+            spoken = f"Override recorded. {brief}"
+        elif job_id and from_rack:
+            spoken = f"Override recorded. {job_id} stays on {from_rack}."
+        else:
+            spoken = "Override recorded. No migration applied."
+    else:
+        spoken = "Operator action recorded."
+    return _sanitize_for_speech(spoken)
+
+
+def _evidence_line(evidence: Evidence, *, throttling: float = 0.0, headroom: Optional[float] = None) -> str:
+    if evidence.slope_per_min is not None and evidence.metric == "rack_temp_c":
+        temp = evidence.current
+        slope = evidence.slope_per_min
+        throttle = evidence.threshold or 84.0
+        if temp is not None and abs(slope) < 0.35 and (
+            temp >= throttle - 1.0 or (headroom is not None and headroom <= 1.0) or throttling >= 5
+        ):
+            return f"Rack temperature {temp:.0f} degrees Celsius, pinned at the throttle line."
+        if slope >= 0.35:
+            return f"Temperature trend plus {slope:.1f} degrees per minute."
+        if slope <= -0.35:
+            return f"Temperature trend {slope:.1f} degrees per minute."
+        if temp is not None:
+            return f"Rack temperature {temp:.0f} degrees Celsius, holding steady."
+    if evidence.metric == "thermal_headroom_c" and evidence.value is not None:
+        throttle = 84.0
+        val = float(evidence.value)
+        if val <= 0:
+            return "Thermal headroom exhausted — above the throttle limit."
+        return f"Only {val:.1f} degrees Celsius of thermal headroom remain."
+    if evidence.metric == "queued_heavy_jobs" and evidence.value is not None:
+        return f"{int(evidence.value)} heavy jobs are queued on this rack."
+    if evidence.metric == "queued_heavy_gpu_minutes" and evidence.value is not None:
+        return f"About {float(evidence.value):.0f} GPU-minutes of heavy work is inbound."
+    if evidence.metric == "xid_errors" and evidence.value:
+        return f"{int(evidence.value)} XID driver fault(s) detected on the node."
+    if evidence.metric == "ecc_errors_volatile" and evidence.value:
+        return f"{int(evidence.value)} volatile ECC error(s) on the node."
+    if evidence.metric == "hw_thermal_gpus" and evidence.value:
+        return f"{int(evidence.value)} GPU(s) hit the hardware thermal limit."
+    if evidence.metric == "clock_derated_gpus" and evidence.value:
+        return f"{int(evidence.value)} GPU(s) running with derated clocks."
+    if evidence.current is not None and "temp" in evidence.metric:
+        return f"Current rack temperature {evidence.current:.0f} degrees Celsius."
+    if evidence.value is not None and evidence.metric == "rack_util":
+        return f"Rack utilization is {evidence.value * 100:.0f} percent."
+    if evidence.value is not None and "temp" in evidence.metric:
+        return f"Projected temperature is {evidence.value:.0f} degrees Celsius."
+    if evidence.value is not None:
+        return f"{evidence.metric.replace('_', ' ')} is {evidence.value}."
+    return ""
 
 
 class AlertSpeaker:
@@ -74,13 +170,14 @@ class AlertSpeaker:
 
         out = Path(output_wav or self.output_wav)
         client = gradium.client.GradiumClient(api_key=self.api_key)
+        spoken = _sanitize_for_speech(text)
         result = await client.tts(
             {
                 "voice_id": self.voice_id,
                 "output_format": "pcm",
                 "json_config": {"speed": self.speed},
             },
-            text,
+            spoken,
         )
         with wave.open(str(out), "wb") as wav:
             wav.setnchannels(1)
@@ -96,6 +193,12 @@ class AlertSpeaker:
         return asyncio.run(self.speak(text, output_wav=output_wav))
 
     def speak_recommendation(
-        self, prediction: Prediction, recommendation: Optional[Recommendation], output_wav: Optional[Path] = None
+        self,
+        prediction: Prediction,
+        recommendation: Optional[Recommendation],
+        output_wav: Optional[Path] = None,
+        *,
+        alert_text: Optional[str] = None,
     ) -> Optional[Path]:
-        return self.speak_sync(build_alert_text(prediction, recommendation), output_wav=output_wav)
+        text = alert_text or build_alert_text(prediction, recommendation)
+        return self.speak_sync(text, output_wav=output_wav)

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
@@ -18,11 +18,15 @@ import {
 } from "lucide-react";
 
 import { BackgroundLayer } from "@/components/BackgroundLayer";
+import { ClientOnly } from "@/components/ClientOnly";
 import { LiquidLogo } from "@/components/LiquidLogo";
 import { MetricCard } from "@/components/MetricCard";
 import { RackMap3D } from "@/components/RackMap3D";
 import { RackDetailPanel } from "@/components/RackDetailPanel";
+import { ActivePredictionsPanel } from "@/components/ActivePredictionsPanel";
+import { DecisionLogPanel } from "@/components/DecisionLogPanel";
 import { AgentRecommendationPanel } from "@/components/AgentRecommendationPanel";
+import { OperatorImpactBanner } from "@/components/OperatorImpactBanner";
 import { TelemetryFeed } from "@/components/TelemetryFeed";
 import { OverrideModal } from "@/components/OverrideModal";
 import { IntegrationStatus } from "@/components/IntegrationStatus";
@@ -32,20 +36,34 @@ import { riskColorHex, riskLabel } from "@/lib/riskStyles";
 
 import {
   acceptRecommendation,
+  apiConfig,
   askWhy,
-  fetchRecommendation,
-  fetchTelemetry,
-  getClusterState,
+  fetchDashboard as loadDashboard,
+  getDecisionLog,
   overrideRecommendation,
+  pauseReplay,
+  startReplay,
+  mergeStressDashboard,
+  pollStressRecommendation,
+  triggerStressScenario,
 } from "@/lib/api";
-import { triggerStressScenario } from "@/lib/api";
-import { useRecommendationAlert } from "@/lib/alertAudio";
+import {
+  dismissRecommendationAudio,
+  clearPlayedAlerts,
+  playOperatorActionAlertManual,
+  primeAudioPlayback,
+  stopRecommendationAlert,
+  useRecommendationAlert,
+} from "@/lib/alertAudio";
 import type {
   AgentRecommendation,
   ClusterState,
+  OperatorActionResult,
   RackMetric,
   TelemetryEvent,
 } from "@/types/cluster";
+import type { DashboardData } from "@/lib/api";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -66,62 +84,130 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-type DashboardData = {
-  state: ClusterState;
-  rec: AgentRecommendation | null;
-  events: TelemetryEvent[];
-};
-
-// One combined fetch keeps the mock ordering intact: advancing the simulation
-// (getClusterState) must run before the recommendation and telemetry are read.
-async function fetchDashboard(): Promise<DashboardData> {
-  const state = await getClusterState();
-  const rec = await fetchRecommendation();
-  const events = [...(await fetchTelemetry())];
-  return { state, rec, events };
-}
-
 function Dashboard() {
   const queryClient = useQueryClient();
   const [selectedRackId, setSelectedRackId] = useState<string | undefined>();
   const [running, setRunning] = useState(true);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [lastImpact, setLastImpact] = useState<OperatorActionResult | null>(null);
+  const [stressPolling, setStressPolling] = useState(false);
+  const replayBooted = useRef(false);
 
-  const { data, isPending } = useQuery({
+  const { data, isPending, isFetching, isError, error } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: fetchDashboard,
-    refetchInterval: running ? 1500 : false,
+    queryFn: loadDashboard,
+    enabled: typeof window !== "undefined",
+    refetchInterval: (query) => {
+      if (!running && !stressPolling) return false;
+      const status = query.state.data?.rec?.alertStatus;
+      if (stressPolling || status === "generating" || status === "pending") return 350;
+      return 1500;
+    },
     refetchOnWindowFocus: false,
+    retry: 2,
+    staleTime: 500,
   });
   const state = data?.state ?? null;
   const rec = data?.rec ?? null;
   const events = data?.events ?? [];
+  const loading = !state && (isPending || isFetching);
 
-  useRecommendationAlert(rec);
+  const { data: decisionLog = [] } = useQuery({
+    queryKey: ["decision-log"],
+    queryFn: getDecisionLog,
+    enabled: typeof window !== "undefined",
+    refetchInterval: running || stressPolling ? 2000 : false,
+    refetchOnWindowFocus: false,
+  });
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  useEffect(() => {
+    if (apiConfig.mode !== "live" || replayBooted.current) return;
+    replayBooted.current = true;
+    startReplay().catch((err) => console.warn("Failed to start backend replay", err));
+  }, []);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["decision-log"] });
+  };
+
+  const handleToggleRunning = async () => {
+    const next = !running;
+    if (apiConfig.mode === "live") {
+      try {
+        if (next) await startReplay();
+        else await pauseReplay();
+      } catch (err) {
+        console.warn("Replay control failed", err);
+        return;
+      }
+    }
+    setRunning(next);
+  };
+
+  useEffect(() => {
+    if (!lastImpact) return;
+    const timer = window.setTimeout(() => setLastImpact(null), 12_000);
+    return () => window.clearTimeout(timer);
+  }, [lastImpact]);
 
   const acceptMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => acceptRecommendation(r),
-    onSuccess: () => {
+    onMutate: (r) => {
+      stopRecommendationAlert();
+      void dismissRecommendationAudio(r.id);
+    },
+    onSuccess: (impact) => {
       setShowExplanation(false);
+      setLastImpact(impact);
+      toast.success(impact.title, { description: impact.detail, duration: 8000 });
+      void playOperatorActionAlertManual(impact);
       refresh();
+    },
+    onError: (err) => {
+      toast.error("Approval failed", {
+        description: err instanceof Error ? err.message : "Could not reach the backend.",
+      });
     },
   });
   const overrideMutation = useMutation({
     mutationFn: ({ r, reason }: { r: AgentRecommendation; reason: string }) =>
       overrideRecommendation(r, reason),
-    onSuccess: refresh,
+    onMutate: ({ r }) => {
+      stopRecommendationAlert();
+      void dismissRecommendationAudio(r.id);
+    },
+    onSuccess: (impact) => {
+      setOverrideOpen(false);
+      setLastImpact(impact);
+      toast.warning(impact.title, { description: impact.detail, duration: 8000 });
+      void playOperatorActionAlertManual(impact);
+      refresh();
+    },
+    onError: (err) => {
+      toast.error("Override failed", {
+        description: err instanceof Error ? err.message : "Could not reach the backend.",
+      });
+    },
   });
+
+  const operatorDeciding = acceptMutation.isPending || overrideMutation.isPending;
+  useRecommendationAlert(rec, { enabled: !operatorDeciding });
+
   const askWhyMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => askWhy(r),
     onSuccess: refresh,
   });
 
   const selectedRack = useMemo(
-    () => state?.racks.find((r) => r.id === selectedRackId) ?? null,
+    () => state?.racks?.find((r) => r.id === selectedRackId) ?? null,
     [state, selectedRackId],
+  );
+
+  const mapRacks = useMemo(
+    () => state?.mapRacks ?? state?.racks?.slice(0, 8) ?? [],
+    [state],
   );
 
   const topRack = useMemo(() => {
@@ -130,10 +216,20 @@ function Dashboard() {
   }, [state]);
 
   const handleAccept = () => {
-    if (rec) acceptMutation.mutate(rec);
+    primeAudioPlayback();
+    stopRecommendationAlert();
+    if (rec) {
+      void dismissRecommendationAudio(rec.id);
+      acceptMutation.mutate(rec);
+    }
   };
   const handleOverride = (reason: string) => {
-    if (rec) overrideMutation.mutate({ r: rec, reason });
+    primeAudioPlayback();
+    stopRecommendationAlert();
+    if (rec) {
+      void dismissRecommendationAudio(rec.id);
+      overrideMutation.mutate({ r: rec, reason });
+    }
   };
   const handleAskWhy = () => {
     if (!rec) return;
@@ -148,8 +244,31 @@ function Dashboard() {
     if (rec) askWhyMutation.mutate(rec);
   };
 
+  useEffect(() => {
+    if (!stressPolling) return;
+    const stop = window.setTimeout(() => setStressPolling(false), 30_000);
+    return () => window.clearTimeout(stop);
+  }, [stressPolling]);
+
   const startStress = () => {
-    void triggerStressScenario().then(() => refresh());
+    primeAudioPlayback();
+    clearPlayedAlerts();
+    setStressPolling(true);
+    void triggerStressScenario()
+      .then(async (payload) => {
+        queryClient.setQueryData<DashboardData>(["dashboard"], (current) =>
+          mergeStressDashboard(current, payload),
+        );
+        if (apiConfig.mode === "live") {
+          await pollStressRecommendation((rec) => {
+            queryClient.setQueryData<DashboardData>(["dashboard"], (current) =>
+              current ? { ...current, rec } : current,
+            );
+          }, 45_000);
+          void queryClient.invalidateQueries({ queryKey: ["decision-log"] });
+        }
+      })
+      .catch((err) => console.warn("Stress scenario failed", err));
   };
 
   return (
@@ -157,14 +276,24 @@ function Dashboard() {
       <BackgroundLayer />
 
       <div className="mx-auto max-w-[1440px] px-6 py-7 lg:px-10 lg:py-8">
+        {lastImpact && (
+          <OperatorImpactBanner impact={lastImpact} onDismiss={() => setLastImpact(null)} />
+        )}
+        {isError && (
+          <div className="mb-4 rounded-sm border border-crit/40 bg-crit/10 px-4 py-3 text-sm text-crit">
+            Live backend unreachable — start it with{" "}
+            <code className="font-mono text-xs">python -m sentinel.server</code>
+            {error instanceof Error ? `: ${error.message}` : ""}
+          </div>
+        )}
         <HeroSection
           running={running}
-          onToggleRunning={() => setRunning((r) => !r)}
+          onToggleRunning={() => void handleToggleRunning()}
           onStress={startStress}
           onViewLogic={handleViewPredictionLogic}
           rec={rec}
           topRack={topRack}
-          loading={isPending}
+          loading={loading}
         />
 
         <WhyItMatters />
@@ -190,15 +319,15 @@ function Dashboard() {
         <section className="stagger mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           <MetricCard
             label="Total racks"
-            value={state?.racks.length ?? 0}
+            value={state?.totalRacks ?? state?.racks?.length ?? 0}
             icon={Cpu}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Active jobs"
             value={state?.activeJobs ?? 0}
             icon={Activity}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Avg temperature"
@@ -207,14 +336,14 @@ function Dashboard() {
             suffix="°C"
             icon={Thermometer}
             tone={state && state.averageTemperatureC > 75 ? "warning" : "default"}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Power draw"
             value={state?.totalPowerDrawKw ?? 0}
             suffix=" kW"
             icon={Zap}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Cooling avg"
@@ -222,18 +351,18 @@ function Dashboard() {
             suffix="%"
             icon={Wind}
             tone={state && state.averageCoolingEfficiencyPct < 70 ? "warning" : "good"}
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Throttling risks"
             value={
-              state?.racks.filter((r) => r.riskLevel === "critical" || r.riskLevel === "warning")
+              state?.racks?.filter((r) => r.riskLevel === "critical" || r.riskLevel === "warning")
                 .length ?? 0
             }
             icon={ShieldAlert}
             tone={rec?.riskLevel === "critical" ? "critical" : "default"}
             hint="racks needing attention"
-            loading={isPending}
+            loading={loading}
           />
           <MetricCard
             label="Agent confidence"
@@ -241,7 +370,7 @@ function Dashboard() {
             suffix="%"
             icon={Sparkles}
             tone="good"
-            loading={isPending}
+            loading={loading}
           />
         </section>
 
@@ -252,14 +381,28 @@ function Dashboard() {
               <SectionHeader
                 icon={<Gauge className="h-3.5 w-3.5" />}
                 title="Cluster map"
-                hint={`${state?.racks.length ?? 0}-rack GPU floor`}
+                hint={
+                  (state?.totalRacks ?? state?.racks?.length ?? 0) > mapRacks.length
+                    ? `${mapRacks.length}-rack floor · ${state?.totalRacks ?? state?.racks?.length ?? 42} racks total`
+                    : "8-rack GPU floor"
+                }
               />
-              <RackMap3D
-                racks={state?.racks ?? []}
-                selectedId={selectedRackId}
-                onSelect={setSelectedRackId}
-              />
+              <ClientOnly
+                fallback={
+                  <div className="flex h-[410px] w-full items-center justify-center rounded-sm border border-line bg-surface/85 font-mono text-[11px] uppercase tracking-widest text-ink-faint">
+                    Loading cluster map…
+                  </div>
+                }
+              >
+                <RackMap3D
+                  racks={mapRacks}
+                  selectedId={selectedRackId}
+                  onSelect={setSelectedRackId}
+                />
+              </ClientOnly>
             </div>
+
+            <ActivePredictionsPanel state={state} />
 
             <div id="agent-recommendation">
               <SectionHeader
@@ -273,6 +416,7 @@ function Dashboard() {
                 onOverride={() => setOverrideOpen(true)}
                 onAskWhy={handleAskWhy}
                 showExplanation={showExplanation}
+                isAccepting={acceptMutation.isPending}
               />
             </div>
 
@@ -289,6 +433,10 @@ function Dashboard() {
                 }
                 onClose={() => setSelectedRackId(undefined)}
               />
+            </div>
+            <div>
+              <SectionHeader icon={<Activity className="h-3.5 w-3.5" />} title="Decision log" />
+              <DecisionLogPanel entries={decisionLog} />
             </div>
             <div>
               <SectionHeader icon={<Activity className="h-3.5 w-3.5" />} title="Operations feed" />
@@ -518,7 +666,7 @@ function WhyItMatters() {
   const items = [
     {
       title: "Predict before failure",
-      text: "Detect projected throttling and node instability before workloads degrade.",
+      text: "Detect thermal throttling, scheduling bottlenecks, and node instability before workloads degrade.",
       icon: <Radar className="h-4 w-4" />,
     },
     {

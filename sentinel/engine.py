@@ -86,6 +86,21 @@ class Engine:
     def apply_action(self, action: str, job_id: str, to_rack: str) -> bool:
         return self.replayer.apply_action(action, job_id, to_rack)
 
+    def refresh_frame(self) -> TelemetryFrame:
+        """Re-emit telemetry at the current replay instant without advancing the clock."""
+        state = self.replayer.state
+        t = self.replayer.t
+        samples = self.sim.step(t, state)
+        tick_idx = max(self.tick_no - 1, 0)
+        return build_frame(
+            tick_idx,
+            t,
+            state,
+            samples,
+            self.replayer.placement,
+            self.replayer.events_applied - self._events_base,
+        )
+
     # --- digital-twin fork (M3, additive; no effect on the live path) --------
     def fork(self) -> "Engine":
         """Return an independent copy of the engine at the current instant.

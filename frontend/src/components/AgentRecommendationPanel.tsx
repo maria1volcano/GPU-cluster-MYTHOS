@@ -1,4 +1,7 @@
 import type { AgentRecommendation } from "@/types/cluster";
+import { VoiceAlertBrief } from "@/components/VoiceAlertBrief";
+import { VoiceAudioToggle } from "@/components/VoiceAudioToggle";
+import { useVoiceSettings } from "@/lib/useVoiceSettings";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
 import { innerGlassPanel, strongGlassPanel } from "@/lib/glassStyles";
 import {
@@ -8,7 +11,7 @@ import {
   ShieldOff,
   Sparkles,
   TrendingUp,
-  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 export function AgentRecommendationPanel({
@@ -17,12 +20,14 @@ export function AgentRecommendationPanel({
   onOverride,
   onAskWhy,
   showExplanation,
+  isAccepting = false,
 }: {
   rec: AgentRecommendation | null;
   onAccept: () => void;
   onOverride: () => void;
   onAskWhy: () => void;
   showExplanation: boolean;
+  isAccepting?: boolean;
 }) {
   if (!rec) {
     return (
@@ -37,6 +42,7 @@ export function AgentRecommendationPanel({
     );
   }
   const color = riskColorHex(rec.riskLevel);
+  const [voice] = useVoiceSettings();
   return (
     <div
       className={`${strongGlassPanel} relative overflow-hidden p-6`}
@@ -51,6 +57,9 @@ export function AgentRecommendationPanel({
           <p className="mt-1 text-sm text-ink-dim">{rec.summary}</p>
         </div>
         <div className="text-right">
+          <div className="mb-2 flex justify-end">
+            <VoiceAudioToggle compact />
+          </div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">Risk</p>
           <p className={`font-mono text-3xl font-semibold ${riskTextClass(rec.riskLevel)}`}>
             {rec.riskScore}
@@ -58,18 +67,15 @@ export function AgentRecommendationPanel({
           <p className="text-xs text-ink-dim">
             {riskLabel(rec.riskLevel)} · confidence {rec.confidencePct}%
           </p>
-          {rec.alertStatus === "generating" && (
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-              Generating voice alert…
-            </p>
-          )}
-          {rec.alertStatus === "ready" && rec.alertAudioUrl && (
-            <p className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-heat">
-              <Volume2 className="h-3 w-3" /> Voice alert ready
+          {!voice.audioEnabled && (
+            <p className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+              <VolumeX className="h-3 w-3" /> Voice muted
             </p>
           )}
         </div>
       </div>
+
+      <VoiceAlertBrief rec={rec} />
 
       <div className="relative mt-5 flex flex-wrap items-center gap-3 text-sm">
         <Pill label={rec.affectedRackId} tone="critical" />
@@ -88,7 +94,7 @@ export function AgentRecommendationPanel({
       </div>
 
       <div className="relative mt-5 grid gap-2 sm:grid-cols-2">
-        {rec.signals.map((s) => (
+        {(rec.signals ?? []).map((s) => (
           <div
             key={s.name}
             className={`flex items-center justify-between rounded-sm px-3.5 py-2.5 text-sm ${innerGlassPanel}`}
@@ -128,9 +134,10 @@ export function AgentRecommendationPanel({
       <div className="relative mt-6 flex flex-wrap gap-2">
         <button
           onClick={onAccept}
-          className="inline-flex items-center gap-2 rounded-sm bg-heat min-h-11 px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-[#0a0a0b] transition hover:bg-heat/90"
+          disabled={isAccepting}
+          className="inline-flex items-center gap-2 rounded-sm bg-heat min-h-11 px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-[#0a0a0b] transition hover:bg-heat/90 disabled:opacity-60"
         >
-          <Check className="h-4 w-4" /> Accept
+          <Check className="h-4 w-4" /> {isAccepting ? "Applying…" : "Accept"}
         </button>
         <button
           onClick={onOverride}
