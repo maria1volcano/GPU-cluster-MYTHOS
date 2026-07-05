@@ -1,325 +1,155 @@
-# Mythos 6 - GPU Cluster Ops Agent
+# Mythos 6 — GPU Cluster Ops Agent
 
-This repository is now the combined Mythos 6 monorepo. It contains the Python backend/data/agent work at the root and the Vite React operator dashboard in `frontend/`.
+> An AI operations agent that watches a live GPU cluster, predicts thermal throttling, scheduling bottlenecks, and node instability **before** they hit workloads, and gives a non-technical operator one-tap recommendations they can approve, override, or question.
 
-## Structure
+**Built for the RAISE AI Hackathon (Paris) — Crusoe track (Statement Three).**
+Backend codename: **Sentinel**.
 
-- `frontend/` - Vite React frontend operator dashboard
-- `sentinel/` - backend replay, prediction, agent, TTS, and decision-log modules
-- `fixtures/` - sample telemetry frames for frontend/backend contracts
-- `tests/` - backend tests
-- `tools/` - backend utility scripts
-- `integrate.md` - frontend/backend integration contract
+---
 
-## Run backend
+## Problem
+
+Modern GPU clusters are expensive, dense, and thermally constrained, and their failure modes stay quiet until they are catastrophic:
+
+- **Thermal throttling** silently caps clocks when a rack runs too hot — jobs slow 15–40% while still reporting "healthy".
+- **Node instability** (XID / ECC storms, power excursions, falling clocks) precedes hard failures that kill long-running distributed jobs.
+- **Scheduling bottlenecks** build up as heavy jobs converge on a hot rack while headroom sits idle elsewhere.
+
+Today this is handled **reactively** by scarce SREs reading dashboards full of raw DCGM counters. The shift operators who actually run the floor can't act on `XID 79` or `SM_CLOCK 1230 MHz` without escalating — and by the time an expert is paged, the incident has already cost GPU-hours.
+
+## Solution
+
+Mythos 6 turns raw cluster telemetry into a live situational model and drives a tight operational loop:
+
+```txt
+live cluster state → predicted risk → agent recommendation → operator action → updated dashboard → decision log
+```
+
+Instead of counters, the operator sees a plain-language card:
+
+> **Rack-00 is projected to keep throttling — 8 heavy jobs are queued. Recommended action: migrate `openb-pod-7671` to a cooler rack with headroom. Approve?**
+
+They can **Approve** (the job migrates and the rack cools), **Override** (with a reason — which tunes future alerts), or **Ask Why** (see the exact telemetry trend behind the alert). Every decision is logged, so a human always stays in control.
+
+## Features
+
+- **Live 3D cluster map** — racks/nodes/GPUs colored by utilization and temperature, streaming in real time.
+- **Three predictors** — thermal throttle (with time-to-throttle ETA), scheduling bottleneck, and node instability, each with the numeric evidence that triggered it.
+- **One-tap agent recommendations** — plain-language migrate-job cards with Approve / Override / Ask Why.
+- **Explainability drawer** — every alert links back to the trend + threshold that produced it (no black boxes).
+- **Voice alerts** — spoken operator briefings and action confirmations via Gradium TTS.
+- **Append-only decision log** — prediction, recommendation, action, outcome, lead time, latency.
+- **Learning from overrides** — repeated overrides tighten a class of alert's thresholds automatically.
+- **Stress trigger + replay controls** — start/pause/resume and a one-click stress scenario for the demo.
+- **Mock mode** — the frontend runs a full demo with no backend attached.
+
+## Approach — the backend pipeline
+
+The Python backend (`sentinel/`) is the heart of the project. It is grounded in the **real Alibaba `openb` GPU-sharing trace** (1,213 nodes · 6,212 GPUs · 8,152 pods · ~149 days), not a scripted mock — every signal traces back to real workload, and throttling *emerges* when real heavy jobs pile onto a dense rack.
+
+```mermaid
+flowchart LR
+    subgraph DATA["Data & replay"]
+      CSV["openb trace CSVs<br/>1,213 nodes · 6,212 GPUs<br/>8,152 pods"]
+      REP["Stream replayer<br/>event-time · deterministic"]
+    end
+    subgraph MODEL["Live situational model"]
+      TEL["DCGM telemetry<br/>synthesized from real load"]
+      PRED["Prediction layer<br/>throttle · bottleneck · instability"]
+      TWIN["Digital-twin fork<br/>'do nothing' projection"]
+    end
+    AGENT["AI agent<br/>Crusoe · Nemotron 3 Ultra 550B<br/>validate → select → justify"]
+    DASH["Operator dashboard<br/>live 3D map + one-tap cards"]
+    OP(["Operator<br/>approve · override · ask why"])
+    LOG[("Decision log<br/>append-only JSONL")]
+    LEARN["Learning<br/>tune thresholds"]
+
+    CSV --> REP --> TEL --> PRED --> AGENT --> DASH --> OP
+    PRED <--> TWIN
+    OP -->|approve: migrate job| REP
+    OP --> LOG --> LEARN -.->|feedback| PRED
+```
+
+Everything below is served to the dashboard over a **FastAPI + WebSocket** layer. Six deterministic stages make up the pipeline:
+
+1. **Data layer (`data/`)** — loads both CSVs into `Node`/`Pod` models and derives **42 model-homogeneous racks** of 32 nodes (the trace has no rack column). A `stats` gate re-asserts the real trace numbers on every run.
+2. **Stream replayer (`replay/`)** — merges pod create/schedule/delete into a time-sorted event queue and replays it in event-time at a configurable speedup. Fully deterministic (seed `42`); exposes `apply_action("MIGRATE_JOB", job_id, to_rack)` as the operator-action seam, recomputing rack load on the spot.
+3. **DCGM telemetry model (`telemetry/`)** — synthesizes per-GPU temperature, power, SM/mem clocks, throttle reasons, and rare XID/ECC events from the *real* `gpu_milli` load, using per-model thermal profiles (idle/throttle temps, TDP, base clocks) with thermal inertia and rack coupling. It lives behind a swappable `TelemetrySource` interface, so a real NVIDIA DCGM feed drops in with **zero** prediction changes.
+4. **Prediction layer (`predict/`)** — rolls EWMA trends over telemetry + queue state and runs three explainable predictors: **thermal throttle** (inverts an RC thermal ODE for a time-to-throttle ETA), **scheduling bottleneck** (queue pressure weighted by GPU-minutes, with a hysteresis latch to stop alert flicker), and **node instability** (XID/ECC + sustained hardware-thermal stress). A **digital-twin fork** of the engine projects the "do nothing" trajectory to quantify how much throttling a proposed action would avert.
+5. **AI agent (`agent/`)** — turns a prediction into a one-tap recommendation (detailed below).
+6. **Decision log & learning (`decision_log.py`, `learning.py`)** — every surfaced prediction, recommendation, and operator action is appended to a JSONL log with lead time, latency, and outcome. The `OverrideLearner` aggregates outcomes per alert type and tightens or relaxes thresholds, so repeated overrides make an alert class fire less eagerly.
+
+A thread-safe runtime (`server/runtime.py`) drives the replay loop, streams telemetry + events over `WS /stream`, and exposes the REST routes the dashboard consumes.
+
+## AI Agent — Crusoe · Nemotron 3 Ultra 550B
+
+The agent is the decision-making brain that converts a raw prediction into an action a non-technical operator can trust. It runs a **plan → recommend → justify** loop with a hard safety boundary so the LLM can never take an unsafe action:
+
+1. **Deterministic recommender (`recommender.py`)** — for the at-risk rack it selects a movable heavy job, then scores every alternative rack by `free_capacity_fraction × thermal_headroom_fraction`, keeping only racks that can actually fit the job. The output is a short list of **pre-validated, safe** migration candidates.
+2. **LLM selection + justification** — the candidates and the prediction's numeric evidence are sent as a structured JSON prompt to **NVIDIA Nemotron 3 Ultra 550B, served through Crusoe Managed Inference** (via an OpenAI-compatible client). The model must return strict JSON that picks exactly one candidate by index and writes a 1–2 sentence, plain-language justification citing the actual trend numbers.
+3. **Guardrails** — the LLM may only *choose among validated candidates* — it can never invent a job, a rack, or an unsafe placement. Any malformed or out-of-range response is rejected.
+4. **Templated fallback** — if Crusoe is slow, unreachable, or unconfigured (default ~5 s timeout), a deterministic template composes the same card straight from the prediction evidence, so the operator always gets an actionable recommendation. Every recommendation is tagged `source: "crusoe" | "template_fallback"`.
+5. **Voice narration** — the chosen recommendation is spoken aloud to the operator via Gradium TTS, with a separate spoken confirmation on approve/override.
+
+Model, endpoint, and timeout are configurable in `sentinel/config.py` / `.env` (`CRUSOE_MODEL`, `CRUSOE_BASE_URL`, `CRUSOE_TIMEOUT_SECONDS`).
+
+## Highlights
+
+- **Safe LLM agency** — Nemotron 3 Ultra 550B (via Crusoe) only *selects and narrates* pre-validated migrations; it can never fabricate an unsafe action.
+- **Real data, not a mock** — throttling is an emergent crowding effect of real workload, so the demo is believable.
+- **Deterministic & reproducible** — same seed + window ⇒ bit-identical frame sequence. Rehearse once, it replays forever.
+- **Explainable-first** — thresholds + trend extrapolation with visible evidence, not opaque ML.
+- **Graceful degradation** — LLM guardrails + templated fallback + offline-safe voice alerts keep the loop working even with no API key.
+- **Human-in-the-loop by design** — the agent recommends; the operator decides; the system learns from overrides.
+
+## Tech Stack
+
+**Backend (Python, `sentinel/`):** FastAPI + WebSocket, **Crusoe Managed Inference running NVIDIA Nemotron 3 Ultra 550B** (via an OpenAI-compatible client) for the agent, Gradium TTS for voice alerts, and an append-only JSONL decision log. The replay / telemetry / prediction core is stdlib-only and deterministic.
+
+**Frontend (`frontend/`):** Vite + React 19, TanStack Router / Start / Query, Tailwind CSS v4, shadcn/ui, React Three Fiber / Three.js (3D map), Recharts, lucide-react.
+
+## Getting Started
+
+### 1. Backend (API on `http://localhost:8000`)
 
 ```bash
 pip install -r requirements.txt
-python -m sentinel.demo
+cp .env.example .env          # add CRUSOE_API_KEY (and GRADIUM_API_KEY for voice) — both optional
+python -m sentinel.server
 ```
 
-Additional backend checks:
+Without an API key the agent uses its templated fallback and voice alerts are skipped, so the demo still runs end-to-end offline.
+
+Optional — run the full loop in the terminal, or the verification gates:
 
 ```bash
-python -m sentinel.engine
-pytest
+python -m sentinel.demo          # end-to-end predict → recommend → decide → log demo
+python -m sentinel.data.stats    # assert the real trace numbers
+python -m sentinel.engine        # heat emerges + migration counterfactual
+pytest                           # test suite
 ```
 
-## Run frontend
+### 2. Frontend (dashboard on `http://localhost:5173`)
 
 ```bash
 cd frontend
 npm install
+cp .env.example .env          # VITE_USE_MOCKS=false to use the live backend
 npm run dev
 ```
 
-See [integrate.md](./integrate.md) for the frontend/backend API contract, required endpoints, and demo fallback settings.
+To run the dashboard standalone (no backend), set `VITE_USE_MOCKS=true`.
 
-**GPU Cluster Ops Agent** is an AI-powered GPU cluster operations dashboard built for the **Crusoe track**. It monitors a live GPU cluster stream, predicts operational risks before they impact workloads, and gives operators clear recommendations they can approve, override, or question.
-
-The project follows one core operational loop:
-
-```txt
-Live cluster state -> predicted risk -> agent recommendation -> operator action -> updated dashboard -> decision log
-```
-
-## Overview
-
-GPU clusters are expensive, complex, and sensitive to workload pressure. When heavy jobs accumulate on stressed racks, operators need to act before performance drops, jobs slow down, or throttling risk increases.
-
-Mythos 6 gives operators a live situational model of the cluster and surfaces explainable recommendations, such as:
-
-> Rack 7 is projected to hit throttling risk in about 8 minutes. Three heavy jobs are queued and workload pressure is rising. Recommended action: migrate JOB-X17 to Rack 2.
-
-The operator can then:
-
-- Approve the recommendation
-- Override it with context
-- Ask why to understand the agent's reasoning
-
-Every decision is logged so the operator stays in control.
-
-## Hackathon Track
-
-This project was built for **Statement Three - Crusoe**.
-
-The track asks for an agent that builds a live situational model from streaming inputs and uses that model to drive proactive, context-sensitive actions a non-technical operator can trust, question, and override.
-
-Mythos 6 fits this by creating an operator-facing GPU cluster control room where the agent watches changing infrastructure signals, predicts risk, recommends actions, and adapts to operator feedback.
-
-## Demo Flow
-
-The main demo is intentionally focused:
-
-1. The operator opens the live cluster dashboard.
-2. The dashboard replays GPU cluster telemetry.
-3. Rack 7 begins showing elevated workload pressure.
-4. The agent flags a projected throttling risk.
-5. The agent recommends migrating `JOB-X17` from Rack 7 to Rack 2.
-6. The operator clicks **Approve**.
-7. The dashboard updates: the job moves to Rack 2, Rack 7 risk decreases, and the incident is marked as averted.
-8. The decision is added to the log.
-
-This creates a complete 60-second story for judges.
-
-## Key Features
-
-- Premium dark operator dashboard
-- Live GPU cluster visualization
-- Rack health and risk states
-- Workload replay mode
-- Stress scenario trigger
-- AI recommendation card
-- Explainable telemetry signals
-- One-tap approve and override flow
-- Ask Why reasoning drawer
-- Decision and event log
-- Mock mode for frontend-only demo
-- Backend integration contract
-
-## Architecture
-
-```txt
-Alibaba clusterdata
-        |
-Stream replayer
-        |
-Prediction layer
-        |
-Agent loop
-        |
-Crusoe Managed Inference
-        |
-Operator dashboard
-        |
-Approve / Override / Ask Why
-        |
-Decision log
-```
-
-## What Is Real vs Inferred?
-
-The project is designed to use **Alibaba clusterdata** as a realistic workload replay source.
-
-Real or replayed signals may include:
-
-- Workload traces
-- Job pressure
-- Scheduling events
-- Utilization-style telemetry
-- Machine and job behavior
-
-Derived or inferred signals may include:
-
-- Projected throttling risk
-- Node instability score
-- Operational risk level
-- Recommended migration action
-
-The frontend can run in mock mode so the full demo works before backend integration is complete.
-
-## Tech Stack
-
-Frontend:
-
-- React
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- lucide-react
-- React Three Fiber / Three.js
-- Mock API layer
-
-Backend target:
-
-- Stream replay service
-- Prediction layer
-- Agent orchestration
-- Crusoe Managed Inference
-- REST API endpoints
-
-## Getting Started
-
-Clone the repository:
-
-```bash
-git clone https://github.com/maria1volcano/GPU-cluster.git
-cd GPU-cluster
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Create an environment file.
-
-For Vite:
-
-```env
-VITE_API_BASE_URL=http://localhost:8000
-VITE_USE_MOCKS=true
-VITE_BACKGROUND_IMAGE=/backgrounds/cluster-bg.jpg
-```
-
-For Next.js:
-
-```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-NEXT_PUBLIC_USE_MOCKS=true
-NEXT_PUBLIC_BACKGROUND_IMAGE=/backgrounds/cluster-bg.jpg
-```
-
-Run the frontend:
-
-```bash
-npm run dev
-```
-
-## Mock Mode
-
-Mock mode allows the frontend demo to run without a backend.
-
-When mock mode is enabled, the app simulates:
-
-- Live cluster replay
-- Rack 7 becoming risky
-- An agent recommendation
-- Approve and override actions
-- Ask Why explanations
-- Decision log updates
-
-Enable mock mode with:
-
-```env
-VITE_USE_MOCKS=true
-```
-
-or:
-
-```env
-NEXT_PUBLIC_USE_MOCKS=true
-```
-
-## Backend Integration
-
-The frontend should call backend services through a single API adapter rather than raw `fetch` calls inside UI components.
-
-Expected API endpoints:
-
-```txt
-GET  /api/cluster/state
-GET  /api/agent/recommendation
-POST /api/replay/start
-POST /api/replay/stress
-POST /api/agent/recommendation/:id/approve
-POST /api/agent/recommendation/:id/override
-POST /api/agent/recommendation/:id/why
-GET  /api/decision-log
-```
-
-If present, `INTEGRATION.md` should define the exact request and response shapes, frontend/backend responsibilities, mock behavior, and demo fallback plan.
-
-## Backend Data Layer (M0–M2, `sentinel/`)
-
-The data ingestion, stream replay, and telemetry foundation lives in the `sentinel/` Python package (stdlib only, Python 3.9+). It replays the real Alibaba openb trace event-time and synthesizes DCGM-style telemetry from the real `gpu_milli` load, so throttling emerges from real data rather than a script.
-
-Contracts for the prediction, agent, and dashboard layers are frozen in [CONTRACTS.md](./CONTRACTS.md), with real sample frames in [`fixtures/`](./fixtures/) — frontend and prediction can build against those today.
-
-Verification gates (each recomputes and asserts the real trace numbers):
-
-```bash
-python3 -m sentinel.data.stats        # M0: CSVs match PRD §2 (31 checks)
-python3 -m sentinel.data.racks        # rack derivation: 42 model-homogeneous racks
-python3 -m sentinel.replay.replayer   # M1: full-trace replay dynamics
-python3 -m sentinel.engine            # M2: demo-window heat + migration counterfactual
-python3 -m sentinel.telemetry.fixture # regenerate contract fixtures (deterministic)
-```
-
-Demo window and all tuning knobs (seed, tick, speedup, thermal constants) are centralized in `sentinel/config.py`.
-
-## Core UI States
-
-- **Idle**: The cluster replay has not started yet.
-- **Running**: The cluster replay is active and the dashboard is receiving live updates.
-- **Stress**: Rack 7 becomes risky and the agent generates a recommendation.
-- **Resolved**: The operator approves the recommendation and the dashboard shows the incident as averted.
-
-## Suggested Project Structure
-
-```txt
-src/
-  components/
-    ClusterHeader.tsx
-    RackMap.tsx
-    AgentRecommendationPanel.tsx
-    TelemetryFeed.tsx
-    DecisionLog.tsx
-    OverrideModal.tsx
-    AskWhyDrawer.tsx
-  lib/
-    api.ts
-    mockCluster.ts
-    riskEngine.ts
-  types/
-    cluster.ts
-  App.tsx
-
-INTEGRATION.md
-README.md
-```
-
-Actual structure may vary as the project evolves.
-
-## Demo Script
-
-1. "This is Mythos 6, a GPU cluster operations agent for live infrastructure monitoring."
-2. "We replay cluster workload data and show the operator a live situational model."
-3. Click **Start Replay**.
-4. Click **Trigger Stress Scenario**.
-5. "Rack 7 is now showing projected throttling risk."
-6. Open **Ask Why**.
-7. "The agent explains the recommendation using workload pressure, queue depth, utilization, and derived risk."
-8. Click **Approve**.
-9. "The job is migrated to Rack 2, Rack 7 risk drops, and the decision is logged."
-10. "The operator stays in control and can override the agent at any moment."
+See [integrate.md](./integrate.md) for the frontend/backend contract and [CONTRACTS.md](./CONTRACTS.md) for the frozen telemetry-frame schema.
 
 ## Team
 
-- **Omama** - Frontend UX/UI, operator dashboard, integration documentation
-- **Omar** - Data ingestion, stream replay, prediction model, deployment
-- **Parv** - Agent loop, tool calls, Crusoe Managed Inference integration
-- **Anish** - Agent loop, tool calls, Crusoe Managed Inference integration
-
-## Status
-
-- Frontend dashboard: in progress
-- Mock mode: supported
-- Backend integration: pending
-- Alibaba clusterdata replay: backend-owned
-- Crusoe Managed Inference integration: backend/agent-owned
+- **Omama** — Frontend UX/UI, operator dashboard, integration documentation
+- **Lazizbek** — Frontend UX/UI, operator dashboard
+- **Omar** — Data ingestion, stream replay, prediction model, deployment
+- **Parv** — Agent loop, tool calls, Crusoe Managed Inference integration
+- **Anish** — Agent loop, tool calls, Crusoe Managed Inference integration
 
 ## License
 
-Hackathon project. License can be added later.
+Hackathon project. License to be added.
