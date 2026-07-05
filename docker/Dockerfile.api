@@ -1,0 +1,30 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY sentinel/ sentinel/
+COPY fixtures/ fixtures/
+COPY openb_node_list_gpu_node.csv openb_pod_list_default.csv ./
+
+RUN mkdir -p /app/data/alerts
+
+ENV SENTINEL_DECISION_LOG=/app/data/decision_log.jsonl \
+    SENTINEL_STATE_PATH=/app/data/sentinel_state.json \
+    SENTINEL_ALERT_AUDIO_DIR=/app/data/alerts
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+
+CMD ["python", "-m", "sentinel.server"]

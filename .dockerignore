@@ -1,0 +1,39 @@
+# Git / editor
+.git
+.gitignore
+.cursor
+.worktrees
+
+# Python
+__pycache__
+*.py[cod]
+.venv
+venv
+env
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+
+# Secrets / runtime artifacts (mounted as volumes in compose)
+.env
+*.wav
+decision_log.jsonl
+sentinel_state.json
+alerts
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/build
+frontend/.output
+frontend/.nitro
+frontend/.wrangler
+frontend/.env
+frontend/.env.*
+
+# Misc
+.DS_Store
+*.md
+!frontend/README.md
