@@ -82,6 +82,9 @@ GRADIUM_OUTPUT_WAV = Path(os.environ.get("GRADIUM_OUTPUT_WAV", REPO_ROOT / "aler
 
 # --- M5 server TTS -----------------------------------------------------------
 SENTINEL_TTS_ENABLED = os.environ.get("SENTINEL_TTS_ENABLED", "true").lower() in ("1", "true", "yes")
+SENTINEL_TTS_OPERATOR_ACTIONS = os.environ.get(
+    "SENTINEL_TTS_OPERATOR_ACTIONS", "true"
+).lower() in ("1", "true", "yes")
 ALERT_AUDIO_DIR = Path(os.environ.get("SENTINEL_ALERT_AUDIO_DIR", REPO_ROOT / "alerts"))
 
 # --- Decision log / learning state (M6/M7) ------------------------------------

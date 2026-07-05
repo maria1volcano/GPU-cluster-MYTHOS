@@ -1,4 +1,7 @@
 import type { AgentRecommendation } from "@/types/cluster";
+import { VoiceAlertBrief } from "@/components/VoiceAlertBrief";
+import { VoiceAudioToggle } from "@/components/VoiceAudioToggle";
+import { useVoiceSettings } from "@/lib/useVoiceSettings";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
 import { innerGlassPanel, strongGlassPanel } from "@/lib/glassStyles";
 import {
@@ -8,7 +11,7 @@ import {
   ShieldOff,
   Sparkles,
   TrendingUp,
-  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 export function AgentRecommendationPanel({
@@ -39,6 +42,7 @@ export function AgentRecommendationPanel({
     );
   }
   const color = riskColorHex(rec.riskLevel);
+  const [voice] = useVoiceSettings();
   return (
     <div
       className={`${strongGlassPanel} relative overflow-hidden p-6`}
@@ -53,6 +57,9 @@ export function AgentRecommendationPanel({
           <p className="mt-1 text-sm text-ink-dim">{rec.summary}</p>
         </div>
         <div className="text-right">
+          <div className="mb-2 flex justify-end">
+            <VoiceAudioToggle compact />
+          </div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">Risk</p>
           <p className={`font-mono text-3xl font-semibold ${riskTextClass(rec.riskLevel)}`}>
             {rec.riskScore}
@@ -60,23 +67,15 @@ export function AgentRecommendationPanel({
           <p className="text-xs text-ink-dim">
             {riskLabel(rec.riskLevel)} · confidence {rec.confidencePct}%
           </p>
-          {rec.alertStatus === "generating" && (
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-              Generating voice alert…
-            </p>
-          )}
-          {rec.alertStatus === "ready" && rec.alertAudioUrl && (
-            <p className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-heat">
-              <Volume2 className="h-3 w-3" /> Voice alert ready
-            </p>
-          )}
-          {rec.alertText && (
-            <p className="mt-2 max-w-xs text-left text-[10px] leading-relaxed text-ink-faint">
-              {rec.alertText}
+          {!voice.audioEnabled && (
+            <p className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+              <VolumeX className="h-3 w-3" /> Voice muted
             </p>
           )}
         </div>
       </div>
+
+      <VoiceAlertBrief rec={rec} />
 
       <div className="relative mt-5 flex flex-wrap items-center gap-3 text-sm">
         <Pill label={rec.affectedRackId} tone="critical" />

@@ -50,42 +50,86 @@ def _sanitize_for_speech(text: str) -> str:
 
 
 def build_alert_text(prediction: Prediction, recommendation: Optional[Recommendation]) -> str:
-    """Spoken alert tied to the live prediction + agent recommendation (not a static script)."""
-    rack = prediction.target.get("id", "the affected rack")
+    """Short spoken alert — issue plus the chosen migration action only."""
+    rack = prediction.target.get("rack_id") or prediction.target.get("id", "the rack")
     issue = _ISSUE_LABELS.get(prediction.type, "an infrastructure risk")
-    parts = [f"Sentinel alert for {rack}.", f"Detected {issue}."]
-
-    for evidence in prediction.evidence[:3]:
-        parts.append(_evidence_line(evidence))
-
-    if prediction.eta_seconds <= 0:
-        parts.append("Impact is happening now.")
-    else:
-        mins = max(1, round(prediction.eta_seconds / 60))
-        parts.append(f"Estimated time to impact: about {mins} minutes.")
 
     if recommendation is None:
-        parts.append("No safe migration is available right now. Monitor the rack closely.")
-        return _sanitize_for_speech(" ".join(parts))
+        return _sanitize_for_speech(f"Sentinel alert. {issue} on {rack}. Monitor the rack.")
 
-    if recommendation.justification.strip():
-        parts.append(recommendation.justification.strip())
-    if recommendation.job_id and recommendation.to_rack:
-        parts.append(
-            f"Recommended action: migrate job {recommendation.job_id} "
-            f"from {recommendation.from_rack or rack} to {recommendation.to_rack}."
-        )
-    if recommendation.expected_effect.strip():
-        parts.append(f"Expected effect: {recommendation.expected_effect.strip()}")
-    parts.append("Approve or override in the dashboard.")
-    return _sanitize_for_speech(" ".join(parts))
+    job = recommendation.job_id or "the workload"
+    src = recommendation.from_rack or rack
+    dest = recommendation.to_rack or "a cooler rack"
+    return _sanitize_for_speech(
+        f"Sentinel alert. {issue} on {src}. Recommended action: migrate {job} to {dest}."
+    )
 
 
-def _evidence_line(evidence: Evidence) -> str:
-    if evidence.slope_per_min is not None and "temp" in evidence.metric:
-        return f"Temperature trend {evidence.slope_per_min:+.1f} degrees per minute."
+def build_operator_action_text(
+    action: str,
+    *,
+    detail: str,
+    job_id: Optional[str] = None,
+    from_rack: Optional[str] = None,
+    to_rack: Optional[str] = None,
+    reason: Optional[str] = None,
+) -> str:
+    """Short spoken confirmation after approve or override (detail is UI-only)."""
+    if action == "approved":
+        if job_id and from_rack and to_rack:
+            spoken = f"Approved. Migrating {job_id} to {to_rack}."
+        elif job_id:
+            spoken = f"Approved. Applying migration for {job_id}."
+        else:
+            spoken = "Approved. Migration applied."
+    elif action == "overridden":
+        if reason and reason.strip():
+            brief = reason.strip()
+            if len(brief) > 72:
+                brief = f"{brief[:69]}..."
+            spoken = f"Override recorded. {brief}"
+        elif job_id and from_rack:
+            spoken = f"Override recorded. {job_id} stays on {from_rack}."
+        else:
+            spoken = "Override recorded. No migration applied."
+    else:
+        spoken = "Operator action recorded."
+    return _sanitize_for_speech(spoken)
+
+
+def _evidence_line(evidence: Evidence, *, throttling: float = 0.0, headroom: Optional[float] = None) -> str:
+    if evidence.slope_per_min is not None and evidence.metric == "rack_temp_c":
+        temp = evidence.current
+        slope = evidence.slope_per_min
+        throttle = evidence.threshold or 84.0
+        if temp is not None and abs(slope) < 0.35 and (
+            temp >= throttle - 1.0 or (headroom is not None and headroom <= 1.0) or throttling >= 5
+        ):
+            return f"Rack temperature {temp:.0f} degrees Celsius, pinned at the throttle line."
+        if slope >= 0.35:
+            return f"Temperature trend plus {slope:.1f} degrees per minute."
+        if slope <= -0.35:
+            return f"Temperature trend {slope:.1f} degrees per minute."
+        if temp is not None:
+            return f"Rack temperature {temp:.0f} degrees Celsius, holding steady."
+    if evidence.metric == "thermal_headroom_c" and evidence.value is not None:
+        throttle = 84.0
+        val = float(evidence.value)
+        if val <= 0:
+            return "Thermal headroom exhausted — above the throttle limit."
+        return f"Only {val:.1f} degrees Celsius of thermal headroom remain."
     if evidence.metric == "queued_heavy_jobs" and evidence.value is not None:
         return f"{int(evidence.value)} heavy jobs are queued on this rack."
+    if evidence.metric == "queued_heavy_gpu_minutes" and evidence.value is not None:
+        return f"About {float(evidence.value):.0f} GPU-minutes of heavy work is inbound."
+    if evidence.metric == "xid_errors" and evidence.value:
+        return f"{int(evidence.value)} XID driver fault(s) detected on the node."
+    if evidence.metric == "ecc_errors_volatile" and evidence.value:
+        return f"{int(evidence.value)} volatile ECC error(s) on the node."
+    if evidence.metric == "hw_thermal_gpus" and evidence.value:
+        return f"{int(evidence.value)} GPU(s) hit the hardware thermal limit."
+    if evidence.metric == "clock_derated_gpus" and evidence.value:
+        return f"{int(evidence.value)} GPU(s) running with derated clocks."
     if evidence.current is not None and "temp" in evidence.metric:
         return f"Current rack temperature {evidence.current:.0f} degrees Celsius."
     if evidence.value is not None and evidence.metric == "rack_util":

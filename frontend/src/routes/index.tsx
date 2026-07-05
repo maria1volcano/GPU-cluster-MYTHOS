@@ -23,6 +23,8 @@ import { LiquidLogo } from "@/components/LiquidLogo";
 import { MetricCard } from "@/components/MetricCard";
 import { RackMap3D } from "@/components/RackMap3D";
 import { RackDetailPanel } from "@/components/RackDetailPanel";
+import { ActivePredictionsPanel } from "@/components/ActivePredictionsPanel";
+import { DecisionLogPanel } from "@/components/DecisionLogPanel";
 import { AgentRecommendationPanel } from "@/components/AgentRecommendationPanel";
 import { OperatorImpactBanner } from "@/components/OperatorImpactBanner";
 import { TelemetryFeed } from "@/components/TelemetryFeed";
@@ -37,12 +39,22 @@ import {
   apiConfig,
   askWhy,
   fetchDashboard as loadDashboard,
+  getDecisionLog,
   overrideRecommendation,
   pauseReplay,
   startReplay,
+  mergeStressDashboard,
+  pollStressRecommendation,
   triggerStressScenario,
 } from "@/lib/api";
-import { useRecommendationAlert } from "@/lib/alertAudio";
+import {
+  dismissRecommendationAudio,
+  clearPlayedAlerts,
+  playOperatorActionAlertManual,
+  primeAudioPlayback,
+  stopRecommendationAlert,
+  useRecommendationAlert,
+} from "@/lib/alertAudio";
 import type {
   AgentRecommendation,
   ClusterState,
@@ -50,6 +62,7 @@ import type {
   RackMetric,
   TelemetryEvent,
 } from "@/types/cluster";
+import type { DashboardData } from "@/lib/api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -78,13 +91,19 @@ function Dashboard() {
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [lastImpact, setLastImpact] = useState<OperatorActionResult | null>(null);
+  const [stressPolling, setStressPolling] = useState(false);
   const replayBooted = useRef(false);
 
   const { data, isPending, isFetching, isError, error } = useQuery({
     queryKey: ["dashboard"],
     queryFn: loadDashboard,
     enabled: typeof window !== "undefined",
-    refetchInterval: running ? 1500 : false,
+    refetchInterval: (query) => {
+      if (!running && !stressPolling) return false;
+      const status = query.state.data?.rec?.alertStatus;
+      if (stressPolling || status === "generating" || status === "pending") return 350;
+      return 1500;
+    },
     refetchOnWindowFocus: false,
     retry: 2,
     staleTime: 500,
@@ -94,7 +113,13 @@ function Dashboard() {
   const events = data?.events ?? [];
   const loading = !state && (isPending || isFetching);
 
-  useRecommendationAlert(rec);
+  const { data: decisionLog = [] } = useQuery({
+    queryKey: ["decision-log"],
+    queryFn: getDecisionLog,
+    enabled: typeof window !== "undefined",
+    refetchInterval: running || stressPolling ? 2000 : false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (apiConfig.mode !== "live" || replayBooted.current) return;
@@ -102,7 +127,10 @@ function Dashboard() {
     startReplay().catch((err) => console.warn("Failed to start backend replay", err));
   }, []);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["decision-log"] });
+  };
 
   const handleToggleRunning = async () => {
     const next = !running;
@@ -126,10 +154,15 @@ function Dashboard() {
 
   const acceptMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => acceptRecommendation(r),
+    onMutate: (r) => {
+      stopRecommendationAlert();
+      void dismissRecommendationAudio(r.id);
+    },
     onSuccess: (impact) => {
       setShowExplanation(false);
       setLastImpact(impact);
       toast.success(impact.title, { description: impact.detail, duration: 8000 });
+      void playOperatorActionAlertManual(impact);
       refresh();
     },
     onError: (err) => {
@@ -141,10 +174,15 @@ function Dashboard() {
   const overrideMutation = useMutation({
     mutationFn: ({ r, reason }: { r: AgentRecommendation; reason: string }) =>
       overrideRecommendation(r, reason),
+    onMutate: ({ r }) => {
+      stopRecommendationAlert();
+      void dismissRecommendationAudio(r.id);
+    },
     onSuccess: (impact) => {
       setOverrideOpen(false);
       setLastImpact(impact);
       toast.warning(impact.title, { description: impact.detail, duration: 8000 });
+      void playOperatorActionAlertManual(impact);
       refresh();
     },
     onError: (err) => {
@@ -153,6 +191,10 @@ function Dashboard() {
       });
     },
   });
+
+  const operatorDeciding = acceptMutation.isPending || overrideMutation.isPending;
+  useRecommendationAlert(rec, { enabled: !operatorDeciding });
+
   const askWhyMutation = useMutation({
     mutationFn: (r: AgentRecommendation) => askWhy(r),
     onSuccess: refresh,
@@ -174,10 +216,20 @@ function Dashboard() {
   }, [state]);
 
   const handleAccept = () => {
-    if (rec) acceptMutation.mutate(rec);
+    primeAudioPlayback();
+    stopRecommendationAlert();
+    if (rec) {
+      void dismissRecommendationAudio(rec.id);
+      acceptMutation.mutate(rec);
+    }
   };
   const handleOverride = (reason: string) => {
-    if (rec) overrideMutation.mutate({ r: rec, reason });
+    primeAudioPlayback();
+    stopRecommendationAlert();
+    if (rec) {
+      void dismissRecommendationAudio(rec.id);
+      overrideMutation.mutate({ r: rec, reason });
+    }
   };
   const handleAskWhy = () => {
     if (!rec) return;
@@ -192,8 +244,31 @@ function Dashboard() {
     if (rec) askWhyMutation.mutate(rec);
   };
 
+  useEffect(() => {
+    if (!stressPolling) return;
+    const stop = window.setTimeout(() => setStressPolling(false), 30_000);
+    return () => window.clearTimeout(stop);
+  }, [stressPolling]);
+
   const startStress = () => {
-    void triggerStressScenario().then(() => refresh());
+    primeAudioPlayback();
+    clearPlayedAlerts();
+    setStressPolling(true);
+    void triggerStressScenario()
+      .then(async (payload) => {
+        queryClient.setQueryData<DashboardData>(["dashboard"], (current) =>
+          mergeStressDashboard(current, payload),
+        );
+        if (apiConfig.mode === "live") {
+          await pollStressRecommendation((rec) => {
+            queryClient.setQueryData<DashboardData>(["dashboard"], (current) =>
+              current ? { ...current, rec } : current,
+            );
+          }, 45_000);
+          void queryClient.invalidateQueries({ queryKey: ["decision-log"] });
+        }
+      })
+      .catch((err) => console.warn("Stress scenario failed", err));
   };
 
   return (
@@ -244,7 +319,7 @@ function Dashboard() {
         <section className="stagger mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           <MetricCard
             label="Total racks"
-            value={state?.racks?.length ?? 0}
+            value={state?.totalRacks ?? state?.racks?.length ?? 0}
             icon={Cpu}
             loading={loading}
           />
@@ -306,7 +381,11 @@ function Dashboard() {
               <SectionHeader
                 icon={<Gauge className="h-3.5 w-3.5" />}
                 title="Cluster map"
-                hint="8-rack GPU floor"
+                hint={
+                  (state?.totalRacks ?? state?.racks?.length ?? 0) > mapRacks.length
+                    ? `${mapRacks.length}-rack floor · ${state?.totalRacks ?? state?.racks?.length ?? 42} racks total`
+                    : "8-rack GPU floor"
+                }
               />
               <ClientOnly
                 fallback={
@@ -322,6 +401,8 @@ function Dashboard() {
                 />
               </ClientOnly>
             </div>
+
+            <ActivePredictionsPanel state={state} />
 
             <div id="agent-recommendation">
               <SectionHeader
@@ -352,6 +433,10 @@ function Dashboard() {
                 }
                 onClose={() => setSelectedRackId(undefined)}
               />
+            </div>
+            <div>
+              <SectionHeader icon={<Activity className="h-3.5 w-3.5" />} title="Decision log" />
+              <DecisionLogPanel entries={decisionLog} />
             </div>
             <div>
               <SectionHeader icon={<Activity className="h-3.5 w-3.5" />} title="Operations feed" />
@@ -581,7 +666,7 @@ function WhyItMatters() {
   const items = [
     {
       title: "Predict before failure",
-      text: "Detect projected throttling and node instability before workloads degrade.",
+      text: "Detect thermal throttling, scheduling bottlenecks, and node instability before workloads degrade.",
       icon: <Radar className="h-4 w-4" />,
     },
     {

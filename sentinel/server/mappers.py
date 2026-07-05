@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from sentinel.config import BURN_IN_S, DEMO_WINDOW, LEAD_TIME_S
 from sentinel.models import Recommendation
 from sentinel.predict.schema import Evidence, Prediction, THERMAL_THROTTLE
 from sentinel.telemetry.profiles import PROFILES
@@ -74,15 +76,79 @@ _MAP_FLOOR_LAYOUT = [
 ]
 
 
-def select_map_racks(racks_out: List[Dict[str, Any]], limit: int = 8) -> List[Dict[str, Any]]:
-    """Top racks by risk for the 3D floor — stable sort, fixed layout."""
-    ranked = sorted(
-        racks_out,
-        key=lambda r: (-r["riskScore"], -r["gpuUtilizationPct"], r["id"]),
-    )[:limit]
+def _rack_floor_slot(rack_id: str) -> int:
+    """Stable floor index: rack-00 / R-01 → slot 0, rack-01 / R-02 → slot 1, …"""
+    match = re.search(r"(\d+)$", rack_id)
+    if not match:
+        return 99
+    n = int(match.group(1))
+    if rack_id.startswith("R-"):
+        return n - 1
+    return n
+
+
+def _demo_floor_ids(limit: int, by_id: Dict[str, Dict[str, Any]]) -> Optional[List[str]]:
+    """Prefer rack-00..07 (live) or R-01..08 (mock) when the full floor exists."""
+    live = [f"rack-{i:02d}" for i in range(limit)]
+    if all(rid in by_id for rid in live):
+        return live
+    mock = [f"R-{i:02d}" for i in range(1, limit + 1)]
+    if all(rid in by_id for rid in mock):
+        return mock
+    return None
+
+
+def select_map_racks(
+    racks_out: List[Dict[str, Any]],
+    limit: int = 8,
+    pin_ids: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Eight racks on the 3D floor — each rack keeps a fixed slot by id."""
+    pin_ids = pin_ids or []
+    by_id = {r["id"]: r for r in racks_out}
+    floor_ids = _demo_floor_ids(limit, by_id)
+
+    seen: set[str] = set()
+    chosen_ids: List[str] = []
+    for rid in pin_ids:
+        if rid in by_id and rid not in seen:
+            chosen_ids.append(rid)
+            seen.add(rid)
+    if floor_ids is not None:
+        for rid in floor_ids:
+            if len(chosen_ids) >= limit:
+                break
+            if rid not in seen:
+                chosen_ids.append(rid)
+                seen.add(rid)
+    if len(chosen_ids) < limit:
+        ranked = sorted(
+            (r for r in racks_out if r["id"] not in seen),
+            key=lambda r: (
+                -float(r.get("gpuDemandGpus") or 0),
+                -float(r.get("queuePressurePct") or 0),
+                -r["riskScore"],
+                -r["gpuUtilizationPct"],
+                r["id"],
+            ),
+        )
+        for rack in ranked:
+            if len(chosen_ids) >= limit:
+                break
+            chosen_ids.append(rack["id"])
+            seen.add(rack["id"])
+
     mapped: List[Dict[str, Any]] = []
-    for i, rack in enumerate(ranked):
-        slot = _MAP_FLOOR_LAYOUT[i] if i < len(_MAP_FLOOR_LAYOUT) else {"x": 0.0, "z": 0.0}
+    for rid in chosen_ids[:limit]:
+        rack = by_id.get(rid)
+        if rack is None:
+            continue
+        slot_idx = _rack_floor_slot(rid)
+        slot = (
+            _MAP_FLOOR_LAYOUT[slot_idx]
+            if 0 <= slot_idx < len(_MAP_FLOOR_LAYOUT)
+            else {"x": 0.0, "z": 0.0}
+        )
         mapped.append(
             {
                 **rack,
@@ -90,7 +156,63 @@ def select_map_racks(racks_out: List[Dict[str, Any]], limit: int = 8) -> List[Di
                 "label": rack.get("label") or rack["id"].replace("-", " ").title(),
             }
         )
+    mapped.sort(key=lambda r: _rack_floor_slot(r["id"]))
     return mapped
+
+
+def merge_map_racks_preserving_activity(
+    prev: List[Dict[str, Any]],
+    new: List[Dict[str, Any]],
+    *,
+    hot_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Keep floor activity when stress seek would drop non-hot racks to trace-idle."""
+    if not new:
+        return prev
+    if not prev:
+        return new
+    prev_by_id = {r["id"]: r for r in prev}
+    merged: List[Dict[str, Any]] = []
+    for rack in new:
+        rid = rack["id"]
+        if hot_id and rid == hot_id:
+            merged.append(rack)
+            continue
+        prior = prev_by_id.get(rid)
+        if prior is None:
+            merged.append(rack)
+            continue
+        out = dict(rack)
+        for key in (
+            "gpuUtilizationPct",
+            "gpuDemandGpus",
+            "queuePressurePct",
+            "temperatureC",
+            "powerDrawKw",
+            "riskScore",
+        ):
+            pv = float(prior.get(key) or 0)
+            nv = float(rack.get(key) or 0)
+            if pv > nv:
+                out[key] = prior[key]
+        if float(out.get("riskScore") or 0) != float(rack.get("riskScore") or 0):
+            out["riskLevel"] = _risk_level(int(out["riskScore"]))
+        if prior.get("activeJobId") and not rack.get("activeJobId"):
+            out["activeJobId"] = prior["activeJobId"]
+        elif rack.get("activeJobId") and rack.get("activeJobId") != prior.get("activeJobId"):
+            out["activeJobId"] = rack["activeJobId"]
+        if prior.get("workloadType") not in (None, "idle") and rack.get("workloadType") == "idle":
+            out["workloadType"] = prior["workloadType"]
+        merged.append(out)
+    merged.sort(key=lambda r: _rack_floor_slot(r["id"]))
+    return merged
+
+
+def _time_to_impact_minutes(prediction: Prediction) -> int:
+    """Operator-facing ETA — at the queue peak both predictors often return eta=0."""
+    if prediction.eta_seconds > 30:
+        return max(1, round(prediction.eta_seconds / 60))
+    return max(1, round(LEAD_TIME_S / 60))
 
 
 def _slope_for_rack(rack_id: str, trends: Optional[Dict]) -> float:
@@ -109,12 +231,131 @@ def _primary_job_on_rack(rack_id: str, pod_rack: Optional[Dict[str, str]]) -> Op
     return jobs[0] if jobs else None
 
 
+def _rack_load_snapshot(frame: TelemetryFrame, rack_id: str) -> Dict[str, Any]:
+    """Lightweight rack load metrics for operator impact payloads."""
+    rack = next((r for r in frame.racks if r.rack_id == rack_id), None)
+    if rack is None:
+        return {}
+    util_pct = max(0.0, min(100.0, rack.util * 100.0))
+    queue_pct = min(98.0, rack.queued_heavy * 12.0 + rack.queued_pods * 4.0)
+    return {
+        "gpuDemandGpus": round(rack.gpu_demand, 2),
+        "gpuUtilizationPct": round(util_pct, 1),
+        "queuePressurePct": round(queue_pct, 1),
+    }
+
+
+def _severity_to_risk_level(severity: str) -> str:
+    return {"critical": "critical", "high": "warning", "medium": "watch"}.get(severity, "watch")
+
+
+_SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1}
+# Tie-break: thermal > bottleneck > node instability when scores match.
+_TYPE_PRIORITY = {
+    THERMAL_THROTTLE: 0,
+    "SCHEDULING_BOTTLENECK": 1,
+    "NODE_INSTABILITY": 2,
+}
+
+
+def alert_prediction_sort_key(prediction: Prediction) -> tuple[float, int, str]:
+    """Deterministic ordering for alert pick + active-predictions panel."""
+    score = _SEVERITY_RANK.get(prediction.severity, 0) * 100 + prediction.confidence * 50
+    target = str(prediction.target.get("rack_id") or prediction.target.get("id", ""))
+    type_rank = _TYPE_PRIORITY.get(prediction.type, 9)
+    return (score, -type_rank, target)
+
+
+def select_alert_prediction(predictions: List[Prediction]) -> Optional[Prediction]:
+    """Pick the highest-severity actionable prediction with stable tie-breaks."""
+    actionable = [
+        p
+        for p in predictions
+        if p.type in {THERMAL_THROTTLE, "SCHEDULING_BOTTLENECK", "NODE_INSTABILITY"}
+    ]
+    if not actionable:
+        return None
+    return max(actionable, key=alert_prediction_sort_key)
+
+
+def rank_actionable_predictions(predictions: List[Prediction]) -> List[Prediction]:
+    """Actionable predictions in alert priority order (for fallback when recommend fails)."""
+    actionable = [
+        p
+        for p in predictions
+        if p.type in {THERMAL_THROTTLE, "SCHEDULING_BOTTLENECK", "NODE_INSTABILITY"}
+    ]
+    return sorted(actionable, key=alert_prediction_sort_key, reverse=True)
+
+
+def _collapse_node_instability(predictions: List[Prediction]) -> List[Prediction]:
+    """One node-instability card per rack — worst node only (stable UI)."""
+    best_by_rack: Dict[str, Prediction] = {}
+    others: List[Prediction] = []
+    for p in predictions:
+        if p.type != "NODE_INSTABILITY":
+            others.append(p)
+            continue
+        rack_id = str(p.target.get("rack_id") or p.target.get("id", ""))
+        prev = best_by_rack.get(rack_id)
+        if prev is None or alert_prediction_sort_key(p) > alert_prediction_sort_key(prev):
+            best_by_rack[rack_id] = p
+    return others + list(best_by_rack.values())
+
+
+def predictions_to_frontend(predictions: List[Prediction]) -> List[Dict[str, Any]]:
+    """Active M3 predictions surfaced on the operator dashboard."""
+    issue_map = {
+        THERMAL_THROTTLE: "thermal_throttling",
+        "SCHEDULING_BOTTLENECK": "scheduling_bottleneck",
+        "NODE_INSTABILITY": "node_instability",
+    }
+    label_map = {
+        THERMAL_THROTTLE: "Thermal throttling",
+        "SCHEDULING_BOTTLENECK": "Scheduling bottleneck",
+        "NODE_INSTABILITY": "Node instability",
+    }
+    seen: set[tuple[str, str]] = set()
+    out: List[Dict[str, Any]] = []
+    ranked = sorted(
+        _collapse_node_instability(predictions),
+        key=alert_prediction_sort_key,
+        reverse=True,
+    )
+    for p in ranked:
+        if p.type not in issue_map:
+            continue
+        target_id = str(p.target.get("id", ""))
+        key = (p.type, target_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        rack_id = p.target.get("rack_id") or (target_id if p.target.get("kind") == "rack" else None)
+        out.append(
+            {
+                "type": issue_map[p.type],
+                "label": label_map[p.type],
+                "targetKind": p.target.get("kind", "rack"),
+                "targetId": target_id,
+                "rackId": rack_id,
+                "severity": p.severity,
+                "riskLevel": _severity_to_risk_level(p.severity),
+                "confidencePct": round(p.confidence * 100),
+                "etaMinutes": _time_to_impact_minutes(p),
+                "signals": _evidence_to_signals(p.evidence),
+            }
+        )
+    return out[:8]
+
+
 def frame_to_cluster_state(
     frame: TelemetryFrame,
     replay_status: str,
     trends: Optional[Dict] = None,
     history: Optional[Dict[str, List[Dict]]] = None,
     pod_rack: Optional[Dict[str, str]] = None,
+    map_pin_racks: Optional[List[str]] = None,
+    predictions: Optional[List[Prediction]] = None,
 ) -> Dict[str, Any]:
     racks_out: List[Dict[str, Any]] = []
     for i, rack in enumerate(frame.racks):
@@ -132,6 +373,10 @@ def frame_to_cluster_state(
             rack.temp_c_mean_active, trend, util_pct, queue_pct, power_kw, cooling
         )
         hist = list((history or {}).get(rack.rack_id, []))
+        if abs(trend) < 0.35 and rack.temp_c_mean_active >= throttle - 1.5:
+            hist_slope = _slope_from_history(hist)
+            if abs(hist_slope) >= abs(trend):
+                trend = hist_slope
         hist.append(
             {
                 "t": frame.t,
@@ -150,6 +395,7 @@ def frame_to_cluster_state(
                 "label": rack.rack_id.replace("-", " ").title(),
                 "heavyJobsQueued": rack.queued_heavy,
                 "temperatureC": round(rack.temp_c_mean_active, 1),
+                "throttleTempC": round(throttle, 1),
                 "temperatureTrendCPerMin": round(trend, 2),
                 "powerDrawKw": round(power_kw, 1),
                 "gpuUtilizationPct": round(util_pct, 1),
@@ -172,6 +418,10 @@ def frame_to_cluster_state(
     avg_cool = sum(r["coolingEfficiencyPct"] for r in racks_out) / len(racks_out)
     heavy_queued = sum(r.queued_heavy for r in frame.racks)
     projected = sum(1 for r in racks_out if r["riskLevel"] in ("warning", "critical"))
+    map_racks = select_map_racks(racks_out, pin_ids=map_pin_racks)
+    floor_utils = [r["gpuUtilizationPct"] for r in map_racks if r["gpuUtilizationPct"] > 0]
+    if not floor_utils:
+        floor_utils = [r["gpuUtilizationPct"] for r in map_racks]
 
     return {
         "timestamp": _trace_iso(frame.t),
@@ -179,9 +429,9 @@ def frame_to_cluster_state(
         "totalRacks": len(racks_out),
         "heavyJobsQueued": heavy_queued,
         "averageGpuUtilizationPct": round(
-            sum(r["gpuUtilizationPct"] for r in racks_out) / max(1, len(racks_out)), 1
+            sum(floor_utils) / max(1, len(floor_utils)), 1
         )
-        if racks_out
+        if floor_utils
         else 0,
         "averageQueuePressurePct": round(
             sum(r["queuePressurePct"] for r in racks_out) / max(1, len(racks_out)), 1
@@ -193,38 +443,196 @@ def frame_to_cluster_state(
         "activeJobs": active,
         "agentConfidencePct": 78,
         "racks": racks_out,
-        "mapRacks": select_map_racks(racks_out),
+        "mapRacks": map_racks,
         "dcgmSampleCount": len(frame.samples),
         "dcgmThrottlingGpus": sum(1 for s in frame.samples if s.throttle_reasons),
+        "activePredictions": predictions_to_frontend(predictions or []),
     }
 
 
+def _slope_from_history(hist: List[Dict[str, Any]]) -> float:
+    """°C/min from recent chart points when the live trend filter is flat at the ceiling."""
+    if len(hist) < 2:
+        return 0.0
+    pts = hist[-min(12, len(hist)) :]
+    if len(pts) < 2:
+        return 0.0
+    mean_t = sum(p["t"] for p in pts) / len(pts)
+    mean_v = sum(p["temp"] for p in pts) / len(pts)
+    s_tt = sum((p["t"] - mean_t) ** 2 for p in pts)
+    if s_tt <= 0:
+        return 0.0
+    s_tv = sum((p["t"] - mean_t) * (p["temp"] - mean_v) for p in pts)
+    slope_per_s = s_tv / s_tt
+    return round(slope_per_s * 60.0, 2)
+
+
 def _evidence_to_signals(evidence: List[Evidence]) -> List[Dict[str, Any]]:
-    signals = []
-    for e in evidence:
-        sev = "watch"
-        if e.metric == "rack_temp_c" and e.slope_per_min and e.slope_per_min > 1.2:
-            sev = "critical"
-        elif e.metric == "queued_heavy_jobs" and e.value and e.value >= 3:
-            sev = "warning"
-        parts = []
-        if e.current is not None:
-            parts.append(f"{e.current}")
-        if e.slope_per_min is not None:
-            parts.append(f"{e.slope_per_min:+.1f}/min")
-        if e.value is not None:
-            parts.append(f"{e.value}")
-        signals.append(
-            {
-                "name": e.metric.replace("_", " ").title(),
-                "value": " · ".join(parts) or e.metric,
-                "trend": "rising"
-                if e.slope_per_min and e.slope_per_min > 0
-                else ("falling" if e.slope_per_min and e.slope_per_min < 0 else "stable"),
-                "severity": sev,
-            }
+    by_metric = {e.metric: e for e in evidence}
+    throttling = float(by_metric["throttling_gpus"].value) if "throttling_gpus" in by_metric else 0.0
+    headroom = float(by_metric["thermal_headroom_c"].value) if "thermal_headroom_c" in by_metric else None
+    temp_ev = by_metric.get("rack_temp_c")
+    throttle = temp_ev.threshold if temp_ev and temp_ev.threshold is not None else 84.0
+    operator_metrics = (
+        "rack_temp_c",
+        "thermal_headroom_c",
+        "throttling_gpus",
+        "queued_heavy_jobs",
+        "rack_util",
+        "queued_heavy_gpu_minutes",
+        "xid_errors",
+        "ecc_errors_volatile",
+        "hw_thermal_gpus",
+        "clock_derated_gpus",
+    )
+    signals: List[Dict[str, Any]] = []
+    for metric in operator_metrics:
+        e = by_metric.get(metric)
+        if e is None:
+            continue
+        signal = _format_operator_signal(
+            e, throttling=throttling, headroom=headroom, throttle=throttle
         )
+        if signal is not None:
+            signals.append(signal)
     return signals
+
+
+def _format_operator_signal(
+    e: Evidence,
+    *,
+    throttling: float,
+    headroom: Optional[float],
+    throttle: float = 84.0,
+) -> Optional[Dict[str, Any]]:
+    if e.metric == "rack_temp_c":
+        temp = e.current
+        slope = e.slope_per_min or 0.0
+        if temp is None:
+            return None
+        at_ceiling = temp >= throttle - 1.0 or (headroom is not None and headroom <= 1.0)
+        if abs(slope) < 0.35 and (at_ceiling or throttling >= 5):
+            value = f"{temp:.1f}°C · pinned at throttle line"
+            trend = "rising"
+            sev = "critical"
+        elif slope >= 0.35:
+            value = f"{temp:.1f}°C · +{slope:.1f}°C/min"
+            trend = "rising"
+            sev = "critical" if slope > 1.2 else "warning"
+        elif slope <= -0.35:
+            value = f"{temp:.1f}°C · {slope:.1f}°C/min"
+            trend = "falling"
+            sev = "watch"
+        else:
+            value = f"{temp:.1f}°C · stable"
+            trend = "stable"
+            sev = "watch"
+        return {"name": "Rack temperature", "value": value, "trend": trend, "severity": sev}
+
+    if e.metric == "thermal_headroom_c":
+        if e.value is None:
+            return None
+        val = float(e.value)
+        if val <= 0:
+            value = f"Above {throttle:.0f}°C throttle limit"
+            sev = "critical"
+        elif val < 1.0:
+            value = f"{val:.1f}°C below {throttle:.0f}°C limit"
+            sev = "critical"
+        else:
+            value = f"{val:.1f}°C below {throttle:.0f}°C limit"
+            sev = "warning" if val < 3.0 else "watch"
+        return {"name": "Thermal headroom", "value": value, "trend": "falling", "severity": sev}
+
+    if e.metric == "throttling_gpus":
+        count = int(e.value or 0)
+        if count <= 0:
+            return None
+        sev = "critical" if count >= 10 else "warning"
+        return {
+            "name": "GPU throttling",
+            "value": f"{count} GPUs clock-capped",
+            "trend": "rising",
+            "severity": sev,
+        }
+
+    if e.metric == "queued_heavy_jobs":
+        count = int(e.value or 0)
+        if count <= 0:
+            return None
+        sev = "critical" if count >= 5 else "warning"
+        return {
+            "name": "Heavy jobs queued",
+            "value": f"{count} jobs waiting",
+            "trend": "rising",
+            "severity": sev,
+        }
+
+    if e.metric == "rack_util":
+        util = float(e.value or 0)
+        return {
+            "name": "Scheduled load",
+            "value": f"{util * 100:.0f}% rack capacity",
+            "trend": "rising" if util > 0.15 else "stable",
+            "severity": "warning" if util > 0.15 else "watch",
+        }
+
+    if e.metric == "queued_heavy_gpu_minutes":
+        pressure = float(e.value or 0)
+        if pressure <= 0:
+            return None
+        return {
+            "name": "Queue pressure",
+            "value": f"{pressure:.0f} GPU·min inbound",
+            "trend": "rising",
+            "severity": "critical" if pressure >= 120 else "warning",
+        }
+
+    if e.metric == "xid_errors":
+        count = int(e.value or 0)
+        if count <= 0:
+            return None
+        return {
+            "name": "XID driver faults",
+            "value": f"{count} fault(s) this tick",
+            "trend": "rising",
+            "severity": "critical",
+        }
+
+    if e.metric == "ecc_errors_volatile":
+        count = int(e.value or 0)
+        if count <= 0:
+            return None
+        return {
+            "name": "Volatile ECC errors",
+            "value": f"{count} error(s) this tick",
+            "trend": "rising",
+            "severity": "warning" if count < 3 else "critical",
+        }
+
+    if e.metric == "hw_thermal_gpus":
+        count = int(e.value or 0)
+        if count <= 0:
+            return None
+        return {
+            "name": "Hardware thermal limit",
+            "value": f"{count} GPU(s) above HW limit",
+            "trend": "rising",
+            "severity": "critical" if count >= 3 else "warning",
+        }
+
+    if e.metric == "clock_derated_gpus":
+        count = int(e.value or 0)
+        if count <= 0:
+            return None
+        return {
+            "name": "Clock derating",
+            "value": f"{count} GPU(s) with reduced clocks",
+            "trend": "rising",
+            "severity": "warning",
+        }
+
+    return None
 
 
 def recommendation_to_agent(
@@ -241,7 +649,14 @@ def recommendation_to_agent(
         "SCHEDULING_BOTTLENECK": "scheduling_bottleneck",
         "NODE_INSTABILITY": "node_instability",
     }
-    rack_id = prediction.target.get("id", rec.from_rack or "rack-00")
+    rack_id = prediction.target.get("rack_id") or prediction.target.get("id", rec.from_rack or "rack-00")
+    if prediction.type == "SCHEDULING_BOTTLENECK":
+        title = f"Relieve queue pressure on {rec.from_rack}"
+    elif prediction.type == "NODE_INSTABILITY":
+        node = prediction.target.get("id", "node")
+        title = f"Evacuate unstable node {node} on {rec.from_rack}"
+    else:
+        title = f"Migrate {rec.job_id} off {rec.from_rack}"
     risk_score = min(100, max(35, int(60 + prediction.confidence * 40)))
     payload: Dict[str, Any] = {
         "id": rec.recommendation_id,
@@ -253,9 +668,9 @@ def recommendation_to_agent(
         "riskScore": risk_score,
         "riskLevel": _risk_level(risk_score),
         "predictedIssue": issue_map.get(prediction.type, "projected_throttling_risk"),
-        "timeToImpactMinutes": max(0, round(prediction.eta_seconds / 60)),
+        "timeToImpactMinutes": _time_to_impact_minutes(prediction),
         "actionType": "migrate_job" if rec.action == "MIGRATE_JOB" else "monitor",
-        "title": f"Migrate {rec.job_id} off {rec.from_rack}",
+        "title": title,
         "summary": rec.justification,
         "recommendation": rec.expected_effect,
         "explanation": rec.as_card(),
@@ -272,22 +687,57 @@ def recommendation_to_agent(
 
 
 def decision_entry_to_frontend(entry: Dict[str, Any]) -> Dict[str, Any]:
-    action = entry.get("operator_action", "").lower()
+    action = entry.get("operator_action", "")
+    action_lower = action.lower()
     outcome = entry.get("outcome", "")
     type_map = {
         "APPROVE": "operator_approved",
         "OVERRIDE": "operator_overrode",
         "DISMISS": "operator_event",
+        "SURFACED": "recommendation_generated",
     }
-    msg = f"{action} → {outcome}" if outcome else action
-    sev = "healthy" if outcome == "AVERTED" else "watch"
+    rec = entry.get("recommendation") or {}
+    alt = entry.get("operator_alternative") or {}
+    if action == "SURFACED" and rec:
+        msg = (
+            f"Recommendation surfaced: migrate {rec.get('job_id', 'workload')} "
+            f"{rec.get('from_rack', '?')} → {rec.get('to_rack', '?')}"
+        )
+    elif action == "OVERRIDE":
+        reason = (alt.get("reason") or "").strip()
+        job = rec.get("job_id")
+        from_r = rec.get("from_rack")
+        if reason:
+            msg = f"Override — {reason}"
+        elif job and from_r:
+            msg = f"Override — {job} stays on {from_r}"
+        else:
+            msg = "Override — no migration applied"
+    elif action == "APPROVE" and outcome == "AVERTED":
+        job = rec.get("job_id")
+        to_r = rec.get("to_rack")
+        msg = f"Approved — incident averted{f' ({job} → {to_r})' if job and to_r else ''}"
+    elif outcome:
+        msg = f"{action_lower} → {outcome.lower()}"
+    else:
+        msg = action_lower or "logged"
+    sev = "healthy" if outcome == "AVERTED" else ("critical" if action == "SURFACED" else "watch")
+    if outcome == "AVERTED":
+        entry_type = "incident_averted"
+    else:
+        entry_type = type_map.get(action, "agent_event")
     t = entry.get("t", 0)
+    lead_s = float(entry.get("lead_time_seconds") or 0)
     return {
         "id": entry.get("decision_id", f"dec-{t}"),
         "timestamp": _trace_iso(int(t)) if t else _iso_now(),
-        "type": type_map.get(entry.get("operator_action", ""), "agent_event"),
+        "type": entry_type,
         "message": msg,
         "severity": sev,
+        "operatorAction": action,
+        "outcome": outcome,
+        "overrideReason": (alt.get("reason") or "").strip() or None,
+        "leadTimeMinutes": max(1, round(lead_s / 60)) if lead_s > 30 else max(1, round(LEAD_TIME_S / 60)),
     }
 
 

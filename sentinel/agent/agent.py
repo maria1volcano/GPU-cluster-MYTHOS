@@ -59,8 +59,18 @@ class Agent:
                 bits.append(f"{prediction.target['id']} is heating ~{e.slope_per_min:.1f}°C/min")
             elif e.metric == "queued_heavy_jobs" and e.value is not None:
                 bits.append(f"{int(e.value)} heavy jobs queued")
+            elif e.metric == "queued_heavy_gpu_minutes" and e.value is not None:
+                bits.append(f"{e.value:.0f} GPU-minutes of heavy work queued")
             elif e.metric == "rack_util" and e.value is not None:
                 bits.append(f"rack utilization at {e.value * 100:.0f}%")
+            elif e.metric == "xid_errors" and e.value:
+                bits.append(f"{int(e.value)} XID driver fault(s) this tick")
+            elif e.metric == "ecc_errors_volatile" and e.value:
+                bits.append(f"{int(e.value)} volatile ECC error(s)")
+            elif e.metric == "hw_thermal_gpus" and e.value:
+                bits.append(f"{int(e.value)} GPU(s) in hardware thermal limit")
+            elif e.metric == "clock_derated_gpus" and e.value:
+                bits.append(f"{int(e.value)} GPU(s) with derated clocks")
 
         if prediction.type == "THERMAL_THROTTLE":
             status = (
@@ -70,12 +80,16 @@ class Agent:
             )
         elif prediction.type == "SCHEDULING_BOTTLENECK":
             status = "is becoming a scheduling bottleneck"
+        elif prediction.type == "NODE_INSTABILITY":
+            node = prediction.target.get("id", "node")
+            status = f"node {node} is showing instability signals"
         else:
             status = "needs attention"
 
+        target_label = prediction.target.get("rack_id") or prediction.target.get("id", "rack")
         trend = f" ({', '.join(bits)})" if bits else ""
         return (
-            f"{prediction.target['id']} {status}{trend}. "
+            f"{target_label} {status}{trend}. "
             f"{candidate.to_rack} has {candidate.to_rack_free_capacity_frac * 100:.0f}% free capacity and "
             f"{candidate.to_rack_thermal_headroom_c:.0f}°C of thermal headroom, so migrating "
             f"{candidate.job_id} there should resolve it."

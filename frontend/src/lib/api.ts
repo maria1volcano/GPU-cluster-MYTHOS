@@ -14,6 +14,8 @@ import {
   pushTelemetry,
   triggerStressScenario as triggerMockStressScenario,
 } from "./mockCluster";
+import { decorateLiveStressState } from "./stressMapMerge";
+import { getVoiceSettings, isAudioEnabled } from "./voiceSettings";
 
 const USE_MOCKS = (import.meta.env.VITE_USE_MOCKS ?? "true") !== "false";
 const API_BASE =
@@ -142,7 +144,9 @@ export async function approveRecommendation(recommendationId: string, rec?: Agen
       timeToImpactMinutes: recommendation?.timeToImpactMinutes,
     } satisfies OperatorActionResult;
   }
-  const res = await post(`/api/agent/recommendation/${recommendationId}/approve`);
+  const res = await post(`/api/agent/recommendation/${recommendationId}/approve`, {
+    voiceConfirm: isAudioEnabled() && getVoiceSettings().operatorActionConfirmations,
+  });
   return (await res.json()) as OperatorActionResult;
 }
 
@@ -178,7 +182,10 @@ export async function overrideRecommendation(
       timeToImpactMinutes: rec?.timeToImpactMinutes,
     } satisfies OperatorActionResult;
   }
-  const res = await post(`/api/agent/recommendation/${recommendationId}/override`, { reason });
+  const res = await post(`/api/agent/recommendation/${recommendationId}/override`, {
+    reason,
+    voiceConfirm: isAudioEnabled() && getVoiceSettings().operatorActionConfirmations,
+  });
   return (await res.json()) as OperatorActionResult;
 }
 
@@ -229,9 +236,11 @@ export async function fetchDashboard(): Promise<DashboardData> {
     fetchTelemetry(),
   ]);
   if (stateResult.status === "rejected") throw stateResult.reason;
+  const rec = recResult.status === "fulfilled" ? recResult.value : null;
+  const state = decorateLiveStressState(stateResult.value, rec);
   return {
-    state: stateResult.value,
-    rec: recResult.status === "fulfilled" ? recResult.value : null,
+    state,
+    rec,
     events: eventsResult.status === "fulfilled" ? [...eventsResult.value] : [],
   };
 }
@@ -270,7 +279,13 @@ export async function resumeReplay() {
   return { success: true };
 }
 
-export async function triggerStressScenario() {
+export type StressScenarioResult = {
+  success: boolean;
+  state?: ClusterState;
+  recommendation?: AgentRecommendation | null;
+};
+
+export async function triggerStressScenario(): Promise<StressScenarioResult> {
   if (USE_MOCKS) {
     triggerMockStressScenario();
     pushTelemetry({
@@ -278,23 +293,65 @@ export async function triggerStressScenario() {
       message: "Stress scenario injected — cluster load rising on R-07",
       severity: "warning",
     });
-    return { success: true };
+    const state = advanceSimulation();
+    generateTelemetryFromState(state);
+    return {
+      success: true,
+      state: { ...state, mapRacks: state.racks },
+      recommendation: getRecommendation(),
+    };
   }
-  await post("/api/replay/stress");
-  return { success: true };
+  const res = await fetchWithTimeout("/api/replay/stress", { method: "POST" });
+  if (!res.ok) throw new Error(`POST /api/replay/stress failed: ${res.status} ${res.statusText}`);
+  apiConfig.backendReachable = true;
+  return (await res.json()) as StressScenarioResult;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** Poll until Gradium alert audio is ready (or failed/skipped). */
+export async function pollStressRecommendation(
+  onUpdate?: (rec: AgentRecommendation | null) => void,
+  maxMs = 30_000,
+): Promise<AgentRecommendation | null> {
+  const start = Date.now();
+  let last: AgentRecommendation | null = null;
+  while (Date.now() - start < maxMs) {
+    last = await fetchRecommendation();
+    onUpdate?.(last);
+    if (!last) {
+      await sleep(350);
+      continue;
+    }
+    if (last.alertStatus === "ready" && last.alertAudioUrl) return last;
+    if (last.alertStatus === "failed" || last.alertStatus === "skipped") return last;
+    await sleep(350);
+  }
+  return last;
+}
+
+export function mergeStressDashboard(
+  current: DashboardData | undefined,
+  payload: StressScenarioResult,
+): DashboardData {
+  const rec = payload.recommendation ?? null;
+  const baseState = payload.state ?? current?.state ?? ({} as ClusterState);
+  const state = decorateLiveStressState(baseState, rec);
+
+  return {
+    state,
+    rec,
+    events: current?.events ?? [],
+  };
 }
 
 // --- decision log ----------------------------------------------------------
 
 export async function getDecisionLog(): Promise<DecisionLogEntry[]> {
   if (USE_MOCKS) {
-    return getTelemetry().map((event) => ({
-      id: event.id,
-      timestamp: event.timestamp,
-      type: event.type,
-      message: event.message,
-      severity: event.severity,
-    }));
+    return [];
   }
   const data = await getJson<DecisionLogEntry[] | { events: DecisionLogEntry[] }>(
     "/api/decision-log",

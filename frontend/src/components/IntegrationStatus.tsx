@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { apiConfig, pingBackend } from "@/lib/api";
+import { useVoiceSettings } from "@/lib/useVoiceSettings";
+import { VoiceAudioToggle } from "@/components/VoiceAudioToggle";
 import { softGlassPanel } from "@/lib/glassStyles";
 
 export function IntegrationStatus() {
   const [open, setOpen] = useState(false);
   const [reachable, setReachable] = useState<boolean | null>(apiConfig.backendReachable);
+  const [voice, updateVoice] = useVoiceSettings();
 
   useEffect(() => {
     if (apiConfig.mode === "mock") {
@@ -21,6 +24,7 @@ export function IntegrationStatus() {
 
   const liveOk = apiConfig.mode === "live" && reachable === true;
   const liveDown = apiConfig.mode === "live" && reachable === false;
+  const subVoiceDisabled = !voice.audioEnabled;
 
   return (
     <div className={softGlassPanel}>
@@ -63,6 +67,62 @@ export function IntegrationStatus() {
           <Row k="Last fetch" v={apiConfig.lastFetch ?? "—"} />
           <Row k="Reachable" v={reachable == null ? "—" : reachable ? "yes" : "no"} />
           <Row k="Contract" v="INTEGRATION.md" />
+          <div className="sm:col-span-2 rounded-sm border border-line bg-surface/60 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+                Voice alerts
+              </p>
+              <VoiceAudioToggle compact />
+            </div>
+            <label className="flex cursor-pointer items-start gap-3 border-b border-line py-2.5">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={voice.audioEnabled}
+                onChange={(e) => updateVoice({ audioEnabled: e.target.checked })}
+              />
+              <span>
+                <span className="block text-ink">Enable all voice alerts</span>
+                <span className="text-[11px] text-ink-dim">
+                  Master switch — turns off recommendation and operator confirmation audio.
+                </span>
+              </span>
+            </label>
+            <label
+              className={`flex cursor-pointer items-start gap-3 py-1.5 ${subVoiceDisabled ? "opacity-50" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                disabled={subVoiceDisabled}
+                checked={voice.recommendationAlerts}
+                onChange={(e) => updateVoice({ recommendationAlerts: e.target.checked })}
+              />
+              <span>
+                <span className="block text-ink">Recommendation alerts</span>
+                <span className="text-[11px] text-ink-dim">
+                  Speak the agent recommendation when Gradium audio is ready.
+                </span>
+              </span>
+            </label>
+            <label
+              className={`flex cursor-pointer items-start gap-3 py-1.5 ${subVoiceDisabled ? "opacity-50" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                disabled={subVoiceDisabled}
+                checked={voice.operatorActionConfirmations}
+                onChange={(e) => updateVoice({ operatorActionConfirmations: e.target.checked })}
+              />
+              <span>
+                <span className="block text-ink">Operator action confirmation</span>
+                <span className="text-[11px] text-ink-dim">
+                  After you approve or override, speak what action was taken.
+                </span>
+              </span>
+            </label>
+          </div>
           {liveDown && (
             <p className="sm:col-span-2 text-crit">
               Start the API with <code className="font-mono">python -m sentinel.server</code> from
@@ -78,6 +138,8 @@ export function IntegrationStatus() {
               <li>GET /api/agent/recommendation</li>
               <li>POST /api/agent/recommendation/:id/approve</li>
               <li>POST /api/agent/recommendation/:id/override</li>
+              <li>POST /api/agent/recommendation/dismiss-audio</li>
+              <li>GET /api/agent/recommendation/:id/operator-audio</li>
               <li>POST /api/agent/recommendation/:id/why</li>
               <li>GET /api/telemetry/events</li>
             </ul>

@@ -109,12 +109,21 @@ export const RackMap3D = memo(function RackMap3D({
                 </span>
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
               </div>
-              <div className="mt-1.5 grid grid-cols-3 gap-1 font-mono text-[9px] text-ink-dim">
-                <span title="Temperature">{formatTemperatureC(rack.temperatureC)}</span>
-                <span title="Scheduled GPU load">
-                  {formatScheduledLoad(rack.gpuDemandGpus, rack.gpuUtilizationPct)}
-                </span>
-                <span title="Power draw">{formatPowerKw(rack.powerDrawKw)}</span>
+              <div className="mt-1.5 space-y-0.5 font-mono text-[10px] leading-tight text-ink-dim">
+                <div className="flex justify-between gap-2">
+                  <span className="text-ink-faint">Temp</span>
+                  <span className="text-ink">{formatTemperatureC(rack.temperatureC)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-ink-faint">Load</span>
+                  <span className="text-ink">
+                    {formatScheduledLoad(rack.gpuDemandGpus, rack.gpuUtilizationPct)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-ink-faint">Power</span>
+                  <span className="text-ink">{formatPowerKw(rack.powerDrawKw)}</span>
+                </div>
               </div>
             </button>
           );

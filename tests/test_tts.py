@@ -1,6 +1,6 @@
 from sentinel.models import Recommendation
 from sentinel.predict.schema import Evidence, Prediction
-from sentinel.tts import AlertSpeaker, build_alert_text
+from sentinel.tts import AlertSpeaker, build_alert_text, build_operator_action_text
 
 
 def test_build_alert_text_includes_rack_and_migration():
@@ -27,10 +27,11 @@ def test_build_alert_text_includes_rack_and_migration():
     )
     text = build_alert_text(prediction, recommendation)
     assert "rack-00" in text
-    assert "too hot" in text
     assert "rack-18" in text
     assert "thermal throttling" in text
     assert "openb-pod-0001" in text
+    assert "too hot" not in text
+    assert len(text.split()) < 30
 
 
 def test_build_alert_text_without_recommendation():
@@ -47,7 +48,7 @@ def test_build_alert_text_without_recommendation():
     text = build_alert_text(prediction, None)
     assert "rack-03" in text
     assert "scheduling bottleneck" in text
-    assert "4 heavy jobs" in text
+    assert "4 heavy jobs" not in text
 
 
 def test_build_alert_text_normalizes_celsius_for_speech():
@@ -77,10 +78,35 @@ def test_build_alert_text_normalizes_celsius_for_speech():
     )
     text = build_alert_text(prediction, recommendation)
     assert "°" not in text
-    assert "84.3 degrees Celsius" in text
-    assert "84 degrees Celsius threshold" in text
-    assert "-0.3 degrees Celsius headroom" in text
-    assert " dollar " not in text.lower()
+    assert "openb-pod-0007" in text
+    assert "rack-03" in text
+
+
+def test_build_operator_action_text_for_approve_and_override():
+    long_detail = (
+        "Migrated job-1 from rack-00 to rack-01. "
+        "rack-00: 19.0% scheduled load (48.7 GPU), queue 96%. "
+        "rack-01: 12.0% scheduled load (30.0 GPU), queue 10%."
+    )
+    approved = build_operator_action_text(
+        "approved",
+        detail=long_detail,
+        job_id="job-1",
+        from_rack="rack-00",
+        to_rack="rack-01",
+    )
+    assert approved == "Approved. Migrating job-1 to rack-01."
+    assert "19.0%" not in approved
+    assert len(approved.split()) < 12
+
+    overridden = build_operator_action_text(
+        "overridden",
+        detail="No migration applied.",
+        job_id="job-1",
+        from_rack="rack-00",
+        reason="Need more data",
+    )
+    assert overridden == "Override recorded. Need more data"
 
 
 def test_alert_speaker_skips_without_api_key():

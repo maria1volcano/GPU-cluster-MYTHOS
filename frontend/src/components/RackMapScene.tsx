@@ -1,9 +1,10 @@
 import { OrbitControls, Text } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { memo, useRef } from "react";
 import type { Mesh, MeshStandardMaterial } from "three";
 import * as THREE from "three";
 
+import { R3F } from "@/components/r3fElements";
 import type { RackMetric, RiskLevel } from "@/types/cluster";
 import { riskColorHex } from "@/lib/riskStyles";
 
@@ -81,7 +82,7 @@ const Rack = memo(function Rack({
     if (meshRef.current) {
       const lift = selected ? 0.12 + Math.sin(t * 1.6) * 0.03 : 0;
       meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, lift, blend);
-      const targetScale = 1 + (v.util / 100) * 0.04;
+      const targetScale = 1 + (Math.max(v.util, v.power / 40, (v.temp - 32) * 0.35) / 100) * 0.04;
       meshRef.current.scale.setScalar(
         THREE.MathUtils.lerp(meshRef.current.scale.x, targetScale, blend * 0.5),
       );
@@ -90,69 +91,88 @@ const Rack = memo(function Rack({
 
   const px = rack.position?.x ?? 0;
   const pz = rack.position?.z ?? 0;
+  const slotYs = [0.55, 0.15, -0.25, -0.65];
 
-  return (
-    <group position={[px, 0, pz]}>
-      <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.48, 0]}>
-        <circleGeometry args={[1.05, 32]} />
-        <meshBasicMaterial color={color.current} transparent opacity={0.28} />
-      </mesh>
-      <mesh
-        ref={meshRef}
-        castShadow
-        onPointerOver={(e) => {
+  return R3F(
+    "group",
+    { position: [px, 0, pz] },
+    R3F(
+      "mesh",
+      {
+        ref: glowRef,
+        rotation: [-Math.PI / 2, 0, 0],
+        position: [0, -0.48, 0],
+      },
+      R3F("circleGeometry", { args: [1.05, 32] }),
+      R3F("meshBasicMaterial", { color: color.current, transparent: true, opacity: 0.28 }),
+    ),
+    R3F(
+      "mesh",
+      {
+        ref: meshRef,
+        castShadow: true,
+        onPointerOver: (e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
           onHover(rack);
           document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
+        },
+        onPointerOut: () => {
           onHover(null);
           document.body.style.cursor = "default";
-        }}
-        onClick={(e) => {
+        },
+        onClick: (e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
           onSelect();
-        }}
-      >
-        <boxGeometry args={[1.05, 1.85, 1.05]} />
-        <meshStandardMaterial
-          ref={matRef}
-          color="#161618"
-          metalness={0.92}
-          roughness={0.18}
-          emissive={color.current}
-          emissiveIntensity={0.22}
-        />
-      </mesh>
-      {[0.55, 0.15, -0.25, -0.65].map((y, i) => (
-        <mesh key={i} position={[0, y, 0.53]}>
-          <boxGeometry args={[0.82, 0.12, 0.03]} />
-          <meshBasicMaterial color={color.current} transparent opacity={0.85} />
-        </mesh>
-      ))}
-      <Text
-        position={[0, 1.15, 0]}
-        fontSize={0.18}
-        color="#c8c8cc"
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.01}
-        outlineColor="#000000"
-      >
-        {rack.id.replace("rack-", "R")}
-      </Text>
-    </group>
+        },
+      },
+      R3F("boxGeometry", { args: [1.05, 1.85, 1.05] }),
+      R3F("meshStandardMaterial", {
+        ref: matRef,
+        color: "#161618",
+        metalness: 0.92,
+        roughness: 0.18,
+        emissive: color.current,
+        emissiveIntensity: 0.22,
+      }),
+    ),
+    ...slotYs.map((y, i) =>
+      R3F(
+        "mesh",
+        { key: i, position: [0, y, 0.53] },
+        R3F("boxGeometry", { args: [0.82, 0.12, 0.03] }),
+        R3F("meshBasicMaterial", { color: color.current, transparent: true, opacity: 0.85 }),
+      ),
+    ),
+    R3F(
+      Text,
+      {
+        position: [0, 1.15, 0],
+        fontSize: 0.18,
+        color: "#c8c8cc",
+        anchorX: "center",
+        anchorY: "middle",
+        outlineWidth: 0.01,
+        outlineColor: "#000000",
+      },
+      rack.id.replace("rack-", "R"),
+    ),
   );
 });
 
 function Floor() {
   return (
     <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.51, 0]} receiveShadow>
-        <planeGeometry args={[14, 8]} />
-        <meshStandardMaterial color="#0e0e10" metalness={0.6} roughness={0.85} />
-      </mesh>
-      <gridHelper args={[14, 14, "#2a2a30", "#1a1a1f"]} position={[0, -0.505, 0]} />
+      {R3F(
+        "mesh",
+        {
+          rotation: [-Math.PI / 2, 0, 0],
+          position: [0, -0.51, 0],
+          receiveShadow: true,
+        },
+        R3F("planeGeometry", { args: [14, 8] }),
+        R3F("meshStandardMaterial", { color: "#0e0e10", metalness: 0.6, roughness: 0.85 }),
+      )}
+      {R3F("gridHelper", { args: [14, 14, "#2a2a30", "#1a1a1f"], position: [0, -0.505, 0] })}
     </>
   );
 }
@@ -172,10 +192,10 @@ export function RackMapScene({
 
   return (
     <>
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[4, 10, 6]} intensity={0.85} castShadow />
-      <pointLight position={[-5, 4, -4]} intensity={0.45} color="#ff6b1a" />
-      <pointLight position={[5, 4, 4]} intensity={0.35} color="#34d0a8" />
+      {R3F("ambientLight", { intensity: 0.35 })}
+      {R3F("directionalLight", { position: [4, 10, 6], intensity: 0.85, castShadow: true })}
+      {R3F("pointLight", { position: [-5, 4, -4], intensity: 0.45, color: "#ff6b1a" })}
+      {R3F("pointLight", { position: [5, 4, 4], intensity: 0.35, color: "#34d0a8" })}
       <Floor />
       {safeRacks.map((r) => (
         <Rack

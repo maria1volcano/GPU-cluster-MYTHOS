@@ -41,6 +41,7 @@ from sentinel.predict.schema import (
     Evidence,
     Prediction,
 )
+from sentinel.telemetry.profiles import PROFILES
 
 
 def _clamp(x: float, lo: float, hi: float) -> float:
@@ -195,49 +196,98 @@ class SchedulingBottleneckPredictor:
 
 
 class NodeInstabilityPredictor:
-    """FR-4 (P1). Score a node from this-tick XID/ECC events (rare Poisson
-    signals in the telemetry model). Fires when a node shows any error activity;
-    severity scales with the event count. Sustained/rate-based scoring is a
-    post-demo upgrade — this is the honest minimal version off the frozen frame.
-    """
+    """FR-4 (P1). Score a node from XID/ECC events and from sustained hardware
+    thermal stress (HW_THERMAL + clock derating on multiple GPUs). The latter
+    surfaces believable instability during the demo's hot-rack stress window
+    when rare Poisson XID draws haven't fired yet."""
 
     type = NODE_INSTABILITY
 
-    # Weights: an XID (driver-level fault) is a stronger instability signal than
-    # a volatile ECC bit-flip.
     XID_WEIGHT = 1.0
     ECC_WEIGHT = 0.25
     FIRE_SCORE = 1.0
+    HW_THERMAL_THRESHOLD = 2
+    CLOCK_STRESS_THRESHOLD = 3
+    CLOCK_DERATE_FRAC = 0.90
 
     def predict_from_samples(self, t: int, samples: List[Dict]) -> List[Prediction]:
         by_node: Dict[str, Dict[str, float]] = {}
         for s in samples:
             xid = s.get("xid_errors", 0) or 0
             ecc = (s.get("ecc_errors") or {}).get("volatile", 0) or 0
-            if xid == 0 and ecc == 0:
+            reasons = tuple(s.get("throttle_reasons") or ())
+            model = s.get("model")
+            prof = PROFILES.get(model) if model else None
+            sm = s.get("sm_clock_mhz") or 0
+            hw = 1 if "HW_THERMAL" in reasons else 0
+            clock_stress = (
+                1
+                if prof
+                and sm
+                and sm < prof.base_sm_mhz * self.CLOCK_DERATE_FRAC
+                and reasons
+                else 0
+            )
+            if xid == 0 and ecc == 0 and hw == 0 and clock_stress == 0:
                 continue
-            agg = by_node.setdefault(s["node_sn"], {"xid": 0.0, "ecc": 0.0, "rack_id": s.get("rack_id")})
+            agg = by_node.setdefault(
+                s["node_sn"],
+                {
+                    "xid": 0.0,
+                    "ecc": 0.0,
+                    "hw_thermal": 0.0,
+                    "clock_stress": 0.0,
+                    "rack_id": s.get("rack_id"),
+                },
+            )
             agg["xid"] += xid
             agg["ecc"] += ecc
+            agg["hw_thermal"] += hw
+            agg["clock_stress"] += clock_stress
 
         out: List[Prediction] = []
         for node_sn, agg in sorted(by_node.items()):
             score = self.XID_WEIGHT * agg["xid"] + self.ECC_WEIGHT * agg["ecc"]
+            if agg["hw_thermal"] >= self.HW_THERMAL_THRESHOLD:
+                score += 1.5
+            if agg["clock_stress"] >= self.CLOCK_STRESS_THRESHOLD:
+                score += 1.0
             if score < self.FIRE_SCORE:
                 continue
-            severity = "high" if agg["xid"] > 0 else "medium"
+            severity = (
+                "critical"
+                if agg["xid"] > 0 or agg["hw_thermal"] >= 3
+                else "high"
+                if agg["hw_thermal"] >= self.HW_THERMAL_THRESHOLD
+                else "medium"
+            )
             confidence = round(_clamp(0.5 + 0.1 * score, 0.0, 0.9), 2)
-            out.append(Prediction(
-                prediction_id="",
-                type=self.type,
-                target={"kind": "node", "id": node_sn},
-                eta_seconds=0.0,
-                severity=severity,
-                confidence=confidence,
-                evidence=[
-                    Evidence(metric="xid_errors", value=agg["xid"]),
-                    Evidence(metric="ecc_errors_volatile", value=agg["ecc"]),
-                ],
-                t=t,
-            ))
+            evidence: List[Evidence] = []
+            if agg["xid"]:
+                evidence.append(Evidence(metric="xid_errors", value=agg["xid"]))
+            if agg["ecc"]:
+                evidence.append(Evidence(metric="ecc_errors_volatile", value=agg["ecc"]))
+            if agg["hw_thermal"]:
+                evidence.append(
+                    Evidence(metric="hw_thermal_gpus", value=agg["hw_thermal"])
+                )
+            if agg["clock_stress"]:
+                evidence.append(
+                    Evidence(metric="clock_derated_gpus", value=agg["clock_stress"])
+                )
+            target: Dict[str, str] = {"kind": "node", "id": node_sn}
+            if agg.get("rack_id"):
+                target["rack_id"] = str(agg["rack_id"])
+            out.append(
+                Prediction(
+                    prediction_id="",
+                    type=self.type,
+                    target=target,
+                    eta_seconds=0.0,
+                    severity=severity,
+                    confidence=confidence,
+                    evidence=evidence,
+                    t=t,
+                )
+            )
         return out

@@ -2,7 +2,7 @@ import type { RackMetric } from "@/types/cluster";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
 import { formatPercent, formatPowerKw, formatScheduledLoad, formatTemperatureC } from "@/lib/formatMetric";
 import { innerGlassPanel, glassPanel } from "@/lib/glassStyles";
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
+import { LineChart, Line, ReferenceLine, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { Cpu, Thermometer, Wind, Zap, Activity, X } from "lucide-react";
 
 export function RackDetailPanel({
@@ -26,6 +26,13 @@ export function RackDetailPanel({
   }
   const history = rack.history ?? [];
   const color = riskColorHex(rack.riskLevel);
+  const throttleLine = rack.throttleTempC ?? 84;
+  const tempMin = history.length
+    ? Math.min(...history.map((p) => p.temp), throttleLine - 4)
+    : throttleLine - 8;
+  const tempMax = history.length
+    ? Math.max(...history.map((p) => p.temp), throttleLine) + 2
+    : throttleLine + 4;
 
   return (
     <div className={`relative h-full overflow-hidden p-6 ${glassPanel}`}>
@@ -93,11 +100,14 @@ export function RackDetailPanel({
       <div className="mt-5">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">
           Temperature (30 ticks)
+          <span className="ml-2 normal-case tracking-normal text-ink-faint">
+            — dashed line = {throttleLine}°C throttle limit
+          </span>
         </p>
         <div className="mt-2 h-24">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={history}>
-              <YAxis hide domain={["dataMin-2", "dataMax+2"]} />
+              <YAxis hide domain={[tempMin, tempMax]} />
               <Tooltip
                 contentStyle={{
                   background: "#141416",
@@ -107,6 +117,12 @@ export function RackDetailPanel({
                 }}
                 labelStyle={{ display: "none" }}
                 formatter={(v: number) => [`${v.toFixed(1)}°C`, "temp"]}
+              />
+              <ReferenceLine
+                y={throttleLine}
+                stroke="#ff6b1a"
+                strokeDasharray="4 4"
+                strokeOpacity={0.85}
               />
               <Line type="monotone" dataKey="temp" stroke={color} strokeWidth={2} dot={false} />
             </LineChart>

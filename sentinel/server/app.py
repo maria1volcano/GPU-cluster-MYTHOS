@@ -38,6 +38,15 @@ app.add_middleware(
 
 class OverrideBody(BaseModel):
     reason: str = ""
+    voiceConfirm: bool = False
+
+
+class ApproveBody(BaseModel):
+    voiceConfirm: bool = False
+
+
+class DismissAudioBody(BaseModel):
+    recommendationId: str
 
 
 @app.get("/health")
@@ -60,9 +69,11 @@ def get_recommendation(response: Response):
 
 
 @app.post("/api/agent/recommendation/{recommendation_id}/approve")
-def approve_recommendation(recommendation_id: str) -> Dict[str, Any]:
+def approve_recommendation(recommendation_id: str, body: ApproveBody = ApproveBody()) -> Dict[str, Any]:
     try:
-        return get_runtime().approve_recommendation(recommendation_id)
+        return get_runtime().approve_recommendation(
+            recommendation_id, voice_confirm=body.voiceConfirm
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Recommendation not found")
 
@@ -70,9 +81,17 @@ def approve_recommendation(recommendation_id: str) -> Dict[str, Any]:
 @app.post("/api/agent/recommendation/{recommendation_id}/override")
 def override_recommendation(recommendation_id: str, body: OverrideBody) -> Dict[str, Any]:
     try:
-        return get_runtime().override_recommendation(recommendation_id, body.reason)
+        return get_runtime().override_recommendation(
+            recommendation_id, body.reason, voice_confirm=body.voiceConfirm
+        )
     except KeyError:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+
+
+@app.post("/api/agent/recommendation/dismiss-audio")
+def dismiss_recommendation_audio(body: DismissAudioBody) -> Dict[str, bool]:
+    get_runtime().dismiss_recommendation_audio(body.recommendationId)
+    return {"success": True}
 
 
 @app.post("/api/agent/recommendation/{recommendation_id}/why")
@@ -88,6 +107,14 @@ def get_alert_audio(recommendation_id: str):
     path = get_runtime().alert_audio_path(recommendation_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Alert audio not ready")
+    return FileResponse(path, media_type="audio/wav", filename=path.name)
+
+
+@app.get("/api/agent/recommendation/{recommendation_id}/operator-audio")
+def get_operator_action_audio(recommendation_id: str):
+    path = get_runtime().operator_action_audio_path(recommendation_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Operator action audio not ready")
     return FileResponse(path, media_type="audio/wav", filename=path.name)
 
 
@@ -125,9 +152,9 @@ def replay_resume() -> Dict[str, bool]:
 
 
 @app.post("/api/replay/stress")
-def replay_stress() -> Dict[str, bool]:
-    get_runtime().trigger_stress()
-    return {"success": True}
+def replay_stress() -> Dict[str, Any]:
+    payload = get_runtime().trigger_stress()
+    return {"success": True, **payload}
 
 
 @app.get("/api/decision-log")
