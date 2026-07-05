@@ -35,11 +35,13 @@ function Rack({
     }
   });
 
+  const rackSpacing = 1.55;
+
   return (
-    <group position={[rack.position.x, 0, rack.position.z ?? 0]}>
+    <group position={[rack.position.x * rackSpacing, 0, (rack.position.z ?? 0) * rackSpacing]}>
       {/* Glow disc */}
       <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]}>
-        <circleGeometry args={[1.1, 32]} />
+        <circleGeometry args={[0.72, 32]} />
         <meshBasicMaterial color={color} transparent opacity={0.35} />
       </mesh>
       {/* Rack body */}
@@ -59,7 +61,7 @@ function Rack({
           onSelect();
         }}
       >
-        <boxGeometry args={[1.2, 2, 1.2]} />
+        <boxGeometry args={[0.82, 1.75, 0.82]} />
         <meshStandardMaterial
           color="#141416"
           metalness={0.85}
@@ -69,9 +71,9 @@ function Rack({
         />
       </mesh>
       {/* GPU slot lights */}
-      {[0.6, 0.2, -0.2, -0.6].map((y, i) => (
-        <mesh key={i} position={[0, y, 0.61]}>
-          <boxGeometry args={[0.9, 0.15, 0.04]} />
+      {[0.5, 0.15, -0.2, -0.55].map((y, i) => (
+        <mesh key={i} position={[0, y, 0.43]}>
+          <boxGeometry args={[0.62, 0.12, 0.035]} />
           <meshBasicMaterial color={color} />
         </mesh>
       ))}
@@ -107,7 +109,7 @@ export function RackMap3D({
   return (
     <div className="relative h-[410px] w-full overflow-hidden rounded-sm border border-line bg-surface/85 backdrop-blur-sm">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.03] via-transparent to-transparent" />
-      <Canvas camera={{ position: [0, 5, 8], fov: 45 }} dpr={[1, 2]}>
+      <Canvas camera={{ position: [0, 7, 11], fov: 42 }} dpr={[1, 2]}>
         <Suspense fallback={null}>
           <ambientLight intensity={0.3} />
           <directionalLight position={[5, 8, 5]} intensity={0.8} />
@@ -127,8 +129,8 @@ export function RackMap3D({
             enablePan={false}
             minPolarAngle={Math.PI / 6}
             maxPolarAngle={Math.PI / 2.2}
-            minDistance={6}
-            maxDistance={16}
+            minDistance={8}
+            maxDistance={18}
           />
         </Suspense>
       </Canvas>

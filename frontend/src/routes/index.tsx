@@ -252,7 +252,7 @@ function Dashboard() {
               <SectionHeader
                 icon={<Gauge className="h-3.5 w-3.5" />}
                 title="Cluster map"
-                hint="8-rack GPU floor"
+                hint={`${state?.racks.length ?? 0}-rack GPU floor`}
               />
               <RackMap3D
                 racks={state?.racks ?? []}
