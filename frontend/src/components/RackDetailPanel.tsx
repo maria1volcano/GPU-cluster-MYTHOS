@@ -1,7 +1,8 @@
 import type { RackMetric } from "@/types/cluster";
 import { riskColorHex, riskLabel, riskTextClass } from "@/lib/riskStyles";
+import { formatPercent, formatPowerKw, formatScheduledLoad, formatTemperatureC } from "@/lib/formatMetric";
 import { innerGlassPanel, glassPanel } from "@/lib/glassStyles";
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
+import { LineChart, Line, ReferenceLine, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { Cpu, Thermometer, Wind, Zap, Activity, X } from "lucide-react";
 
 export function RackDetailPanel({
@@ -25,6 +26,13 @@ export function RackDetailPanel({
   }
   const history = rack.history ?? [];
   const color = riskColorHex(rack.riskLevel);
+  const throttleLine = rack.throttleTempC ?? 84;
+  const tempMin = history.length
+    ? Math.min(...history.map((p) => p.temp), throttleLine - 4)
+    : throttleLine - 8;
+  const tempMax = history.length
+    ? Math.max(...history.map((p) => p.temp), throttleLine) + 2
+    : throttleLine + 4;
 
   return (
     <div className={`relative h-full overflow-hidden p-6 ${glassPanel}`}>
@@ -56,43 +64,50 @@ export function RackDetailPanel({
         <MiniStat
           icon={<Thermometer className="h-3.5 w-3.5" />}
           label="Temperature"
-          value={`${rack.temperatureC.toFixed(1)}°C`}
+          value={formatTemperatureC(rack.temperatureC)}
         />
         <MiniStat
           icon={<Activity className="h-3.5 w-3.5" />}
           label="Trend"
-          value={`${rack.temperatureTrendCPerMin >= 0 ? "+" : ""}${rack.temperatureTrendCPerMin.toFixed(1)}°C/min`}
+          value={
+            rack.temperatureTrendCPerMin == null || Number.isNaN(rack.temperatureTrendCPerMin)
+              ? "—"
+              : `${rack.temperatureTrendCPerMin >= 0 ? "+" : ""}${rack.temperatureTrendCPerMin.toFixed(1)}°C/min`
+          }
         />
         <MiniStat
           icon={<Zap className="h-3.5 w-3.5" />}
           label="Power"
-          value={`${rack.powerDrawKw.toFixed(0)} kW`}
+          value={formatPowerKw(rack.powerDrawKw)}
         />
         <MiniStat
           icon={<Cpu className="h-3.5 w-3.5" />}
-          label="GPU util"
-          value={`${rack.gpuUtilizationPct.toFixed(0)}%`}
+          label="Scheduled load"
+          value={formatScheduledLoad(rack.gpuDemandGpus, rack.gpuUtilizationPct)}
         />
         <MiniStat
           icon={<Wind className="h-3.5 w-3.5" />}
           label="Cooling"
-          value={`${rack.coolingEfficiencyPct.toFixed(0)}%`}
+          value={formatPercent(rack.coolingEfficiencyPct)}
         />
         <MiniStat
           icon={<Activity className="h-3.5 w-3.5" />}
           label="Queue"
-          value={`${rack.queuePressurePct.toFixed(0)}%`}
+          value={formatPercent(rack.queuePressurePct)}
         />
       </div>
 
       <div className="mt-5">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">
           Temperature (30 ticks)
+          <span className="ml-2 normal-case tracking-normal text-ink-faint">
+            — dashed line = {throttleLine}°C throttle limit
+          </span>
         </p>
         <div className="mt-2 h-24">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={history}>
-              <YAxis hide domain={["dataMin-2", "dataMax+2"]} />
+              <YAxis hide domain={[tempMin, tempMax]} />
               <Tooltip
                 contentStyle={{
                   background: "#141416",
@@ -102,6 +117,12 @@ export function RackDetailPanel({
                 }}
                 labelStyle={{ display: "none" }}
                 formatter={(v: number) => [`${v.toFixed(1)}°C`, "temp"]}
+              />
+              <ReferenceLine
+                y={throttleLine}
+                stroke="#ff6b1a"
+                strokeDasharray="4 4"
+                strokeOpacity={0.85}
               />
               <Line type="monotone" dataKey="temp" stroke={color} strokeWidth={2} dot={false} />
             </LineChart>

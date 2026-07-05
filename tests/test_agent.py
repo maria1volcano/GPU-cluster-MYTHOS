@@ -49,6 +49,20 @@ def _build_scenario():
     return topology, state, placement, pods_by_name, hot_rack, cool_rack, prediction
 
 
+def test_recommender_sort_is_deterministic_on_score_tie():
+    from sentinel.agent.recommender import Recommender
+
+    topology, state, placement, pods_by_name, hot_rack, cool_rack, prediction = _build_scenario()
+    recommender = Recommender(
+        topology, state, placement, pods_by_name, rack_temp_provider=lambda rid: 40.0
+    )
+    first = recommender.candidates(prediction)
+    second = recommender.candidates(prediction)
+    assert first == second
+    if len(first) >= 2 and first[0].score == first[1].score:
+        assert first[0].to_rack <= first[1].to_rack
+
+
 def test_recommender_only_returns_capacity_validated_candidates():
     from sentinel.agent.recommender import Recommender
 

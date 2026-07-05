@@ -2,7 +2,14 @@ export type RiskLevel = "healthy" | "watch" | "warning" | "critical";
 export type WorkloadType = "inference" | "training" | "batch" | "idle";
 export type ReplayStatus = "idle" | "running" | "paused" | "stress" | "resolved";
 export type RecommendationStatus = "none" | "pending" | "approved" | "overridden" | "averted";
-export type AlertStatus = "pending" | "generating" | "ready" | "skipped" | "failed";
+export type AlertStatus =
+  | "pending"
+  | "generating"
+  | "ready"
+  | "skipped"
+  | "failed"
+  | "cancelled"
+  | "dismissed";
 export type ActionType =
   "migrate_job" | "increase_cooling" | "reduce_load" | "monitor" | "continue_monitoring";
 
@@ -13,9 +20,14 @@ export interface RackMetric {
   nodeInstabilityScore?: number;
   derivedThermalRiskPct?: number;
   temperatureC: number;
+  /** Model throttle line (°C) for chart overlay — from telemetry profiles. */
+  throttleTempC?: number;
   temperatureTrendCPerMin: number;
   powerDrawKw: number;
   gpuUtilizationPct: number;
+  /** GPU-equivalent scheduled demand (from replay placement, not DCGM noise). */
+  gpuDemandGpus?: number;
+  activePodCount?: number;
   coolingEfficiencyPct: number;
   queuePressurePct: number;
   activeJobId?: string;
@@ -42,6 +54,10 @@ export interface ClusterState {
   activeJobs: number;
   agentConfidencePct: number;
   racks: RackMetric[];
+  mapRacks?: RackMetric[];
+  dcgmSampleCount?: number;
+  dcgmThrottlingGpus?: number;
+  activePredictions?: ActivePrediction[];
 }
 
 export interface AgentSignal {
@@ -50,6 +66,19 @@ export interface AgentSignal {
   trend?: "rising" | "falling" | "stable";
   severity: RiskLevel;
   explanation?: string;
+}
+
+export interface ActivePrediction {
+  type: AgentRecommendation["predictedIssue"];
+  label: string;
+  targetKind: "rack" | "node" | string;
+  targetId: string;
+  rackId?: string;
+  severity: string;
+  riskLevel: RiskLevel;
+  confidencePct: number;
+  etaMinutes: number;
+  signals: AgentSignal[];
 }
 
 export type RecommendationSignal = AgentSignal;
@@ -91,6 +120,23 @@ export interface OperatorActionEvent {
   reason?: string;
 }
 
+export interface OperatorActionResult {
+  success: boolean;
+  action: "approved" | "overridden";
+  outcome: "averted" | "overridden" | "unknown";
+  title: string;
+  detail: string;
+  jobId?: string;
+  fromRack?: string;
+  toRack?: string;
+  reason?: string;
+  expectedEffect?: string;
+  timeToImpactMinutes?: number;
+  operatorAlertText?: string;
+  operatorAlertStatus?: AlertStatus;
+  operatorAlertAudioUrl?: string;
+}
+
 export interface TelemetryEvent {
   id: string;
   timestamp: string;
@@ -122,4 +168,8 @@ export interface DecisionLogEntry {
     | "demo_reset";
   message: string;
   severity: RiskLevel;
+  operatorAction?: string;
+  outcome?: string;
+  overrideReason?: string;
+  leadTimeMinutes?: number;
 }

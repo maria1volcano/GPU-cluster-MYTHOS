@@ -43,18 +43,30 @@ class Recommender:
 
     def _pick_movable_job(self, rack_id: str) -> Optional[str]:
         jobs = self._jobs_on_rack(rack_id)
-        heavy = sorted(j for j in jobs if self.pods_by_name.get(j) and self.pods_by_name[j].heavy)
+        heavy = sorted(
+            (j for j in jobs if self.pods_by_name.get(j) and self.pods_by_name[j].heavy),
+            key=lambda j: self.pods_by_name[j].gpu_demand,
+            reverse=True,
+        )
         pending_heavy = sorted(
-            p.name for p in self.state.pending.values()
-            if p.heavy and self.placement.preview_rack(p) == rack_id
+            (p.name for p in self.state.pending.values()
+             if p.heavy and self.placement.preview_rack(p) == rack_id),
+            key=lambda name: self.pods_by_name[name].gpu_demand,
+            reverse=True,
         )
         pool = heavy or pending_heavy or sorted(jobs)
         return pool[0] if pool else None
 
     def candidates(self, prediction: Prediction, top_n: int = 3) -> List[Candidate]:
-        if prediction.target.get("kind") != "rack":
+        target_kind = prediction.target.get("kind", "rack")
+        if target_kind == "rack":
+            from_rack = prediction.target["id"]
+        elif target_kind == "node":
+            from_rack = prediction.target.get("rack_id")
+            if not from_rack:
+                return []
+        else:
             return []
-        from_rack = prediction.target["id"]
         job_id = self._pick_movable_job(from_rack)
         if job_id is None:
             return []
@@ -102,5 +114,5 @@ class Recommender:
                 )
             )
 
-        scored.sort(key=lambda c: c.score, reverse=True)
+        scored.sort(key=lambda c: (-c.score, c.to_rack))
         return scored[:top_n]

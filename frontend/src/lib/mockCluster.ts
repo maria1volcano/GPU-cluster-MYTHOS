@@ -43,6 +43,7 @@ function seedRack(idx: number): RackMetric {
   const cool = rand(75, 92);
   const power = rand(85, 130);
   const queue = rand(20, 65);
+  const demandGpus = Math.round((util / 100) * 256 * 10) / 10;
   const workload = WORKLOADS[Math.floor(Math.random() * WORKLOADS.length)];
   const base: RackMetric = {
     id,
@@ -51,6 +52,7 @@ function seedRack(idx: number): RackMetric {
     temperatureTrendCPerMin: rand(-0.2, 0.4),
     powerDrawKw: power,
     gpuUtilizationPct: util,
+    gpuDemandGpus: demandGpus,
     coolingEfficiencyPct: cool,
     queuePressurePct: queue,
     activeJobId:
@@ -113,6 +115,7 @@ export function advanceSimulation(): ClusterState {
       temperatureTrendCPerMin: trend,
       coolingEfficiencyPct: newCool,
       gpuUtilizationPct: newUtil,
+      gpuDemandGpus: Math.round((newUtil / 100) * 256 * 10) / 10,
       powerDrawKw: newPower,
       queuePressurePct: newQueue,
       history: [
@@ -162,6 +165,7 @@ export function migrateJob(fromId: string, toId: string) {
         workloadType: "idle",
         temperatureTrendCPerMin: -0.8,
         gpuUtilizationPct: Math.max(20, r.gpuUtilizationPct - 30),
+        gpuDemandGpus: Math.round((Math.max(20, r.gpuUtilizationPct - 30) / 100) * 256 * 10) / 10,
         powerDrawKw: Math.max(60, r.powerDrawKw - 25),
         queuePressurePct: Math.max(10, r.queuePressurePct - 30),
       };
@@ -172,6 +176,8 @@ export function migrateJob(fromId: string, toId: string) {
         activeJobId: jobId,
         workloadType: wl,
         gpuUtilizationPct: Math.min(96, r.gpuUtilizationPct + 15),
+        gpuDemandGpus:
+          Math.round((Math.min(96, r.gpuUtilizationPct + 15) / 100) * 256 * 10) / 10,
       };
     }
     return r;
