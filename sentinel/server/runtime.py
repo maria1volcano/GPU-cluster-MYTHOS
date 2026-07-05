@@ -26,6 +26,7 @@ from sentinel.server.mappers import (
     merge_map_racks_preserving_activity,
     predictions_to_frontend,
     rank_actionable_predictions,
+    prediction_lead_seconds,
     recommendation_to_agent,
     telemetry_event,
     _rack_load_snapshot,
@@ -348,7 +349,7 @@ class ClusterRuntime:
                 operator_action="APPROVE",
                 operator_alternative=None,
                 outcome="AVERTED" if ok else "UNKNOWN",
-                lead_time_seconds=float(pred.eta_seconds),
+                lead_time_seconds=prediction_lead_seconds(pred),
                 latency_ms=0.0,
             )
             rack_id = rec.from_rack or pred.target.get("id")
@@ -448,7 +449,7 @@ class ClusterRuntime:
                 operator_action="OVERRIDE",
                 operator_alternative={"reason": reason},
                 outcome="OVERRIDDEN",
-                lead_time_seconds=float(pred.eta_seconds),
+                lead_time_seconds=prediction_lead_seconds(pred),
                 latency_ms=0.0,
             )
             rack_id = rec.from_rack or pred.target.get("id")
@@ -755,7 +756,7 @@ class ClusterRuntime:
         p = chosen
         self._pending = PendingRecommendation(recommendation=rec, prediction=p, frame_t=frame.t)
         rack_id = p.target.get("rack_id") or p.target.get("id")
-        lead_s = float(p.eta_seconds) if p.eta_seconds > 30 else float(_time_to_impact_minutes(p) * 60)
+        lead_s = prediction_lead_seconds(p)
         self.decision_log.record(
             t=frame.t,
             prediction=p,

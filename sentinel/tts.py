@@ -50,19 +50,45 @@ def _sanitize_for_speech(text: str) -> str:
 
 
 def build_alert_text(prediction: Prediction, recommendation: Optional[Recommendation]) -> str:
-    """Short spoken alert — issue plus the chosen migration action only."""
+    """Spoken alert: present state, inbound pressure, and the twin's
+    do-nothing projection — real numbers only, then the action. Never
+    narrates a temperature slope (a saturated rack has none worth speaking)."""
     rack = prediction.target.get("rack_id") or prediction.target.get("id", "the rack")
     issue = _ISSUE_LABELS.get(prediction.type, "an infrastructure risk")
+    by_metric = {e.metric: e for e in prediction.evidence}
+
+    def val(metric: str):
+        e = by_metric.get(metric)
+        return e.value if e is not None else None
+
+    throttling = val("throttling_gpus") or 0
+    if prediction.type == THERMAL_THROTTLE and prediction.eta_seconds <= 0 and throttling:
+        opening = f"{rack} is thermal throttling now — {int(throttling)} GPUs capped."
+    elif prediction.type == THERMAL_THROTTLE and prediction.eta_seconds > 30:
+        opening = (f"{rack} is projected to start thermal throttling in about "
+                   f"{max(1, round(prediction.eta_seconds / 60))} minutes.")
+    else:
+        opening = f"{issue} on {rack}."
+
+    clauses = []
+    queued = val("queued_heavy_jobs")
+    if queued:
+        clauses.append(f"{int(queued)} more heavy jobs are queued for it.")
+    peak = val("projected_peak_throttling_gpus")
+    horizon = val("projected_horizon_min")
+    if peak and horizon and peak > throttling:
+        clauses.append(f"Projected to worsen to {int(peak)} GPUs "
+                       f"within {horizon:.0f} minutes unless we act.")
 
     if recommendation is None:
-        return _sanitize_for_speech(f"Sentinel alert. {issue} on {rack}. Monitor the rack.")
+        action = "Monitor the rack."
+    else:
+        job = recommendation.job_id or "the workload"
+        dest = recommendation.to_rack or "a cooler rack"
+        action = f"Recommended action: migrate {job} to {dest}."
 
-    job = recommendation.job_id or "the workload"
-    src = recommendation.from_rack or rack
-    dest = recommendation.to_rack or "a cooler rack"
-    return _sanitize_for_speech(
-        f"Sentinel alert. {issue} on {src}. Recommended action: migrate {job} to {dest}."
-    )
+    parts = ["Sentinel alert.", opening] + clauses + [action]
+    return _sanitize_for_speech(" ".join(parts))
 
 
 def build_operator_action_text(

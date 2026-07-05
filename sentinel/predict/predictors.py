@@ -130,6 +130,11 @@ class ThermalThrottlePredictor:
             Evidence(metric="throttling_gpus", value=float(throttling)),
             Evidence(metric="rack_util", value=round(rack.get("util", 0.0), 3)),
         ]
+        # Inbound queue pressure belongs on the thermal card too (DESIGN §3.4's
+        # THERMAL_THROTTLE example carries queued_heavy_jobs as evidence).
+        if rack.get("queued_heavy", 0) > 0:
+            evidence.append(Evidence(metric="queued_heavy_jobs",
+                                     value=float(rack["queued_heavy"])))
         if target_temp is not None:
             evidence.append(Evidence(metric="projected_steady_temp_c", value=round(target_temp, 1)))
         return Prediction(
@@ -152,11 +157,26 @@ class SchedulingBottleneckPredictor:
 
     type = SCHEDULING_BOTTLENECK
 
+    def __init__(self) -> None:
+        # Hysteresis latch per rack: fire at >= threshold, hold an ongoing
+        # incident while >= threshold-1, release below that. Stops the queue
+        # oscillating 3<->2 around the threshold from splitting one incident
+        # into a stream of new alert cards (deterministic state machine).
+        self._latched: set = set()
+
     def predict(self, t: int, rack: Dict, trend, queued_pods: Optional[List[Dict]] = None) -> Optional[Prediction]:
         queued_heavy = rack.get("queued_heavy", 0)
         util = rack.get("util", 0.0)
-        if queued_heavy < effective_bottleneck_queued_heavy_min() or util < effective_bottleneck_rack_util_min():
+        rack_id = rack.get("rack_id", "")
+        fire_min = effective_bottleneck_queued_heavy_min()
+        hold_min = max(1, fire_min - 1)
+        firing = queued_heavy >= fire_min or (
+            rack_id in self._latched and queued_heavy >= hold_min
+        )
+        if not firing or util < effective_bottleneck_rack_util_min():
+            self._latched.discard(rack_id)
             return None
+        self._latched.add(rack_id)
 
         throttling = rack.get("throttling_gpus", 0)
         # Duration/load-weighted pressure: how much heavy GPU-work (GPU-eq x

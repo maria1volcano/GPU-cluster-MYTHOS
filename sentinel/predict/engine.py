@@ -31,7 +31,8 @@ from sentinel.predict.predictors import (
     SchedulingBottleneckPredictor,
     ThermalThrottlePredictor,
 )
-from sentinel.predict.schema import THERMAL_THROTTLE, Evidence, Prediction, prediction_frame
+from sentinel.predict.schema import (SCHEDULING_BOTTLENECK, THERMAL_THROTTLE,
+                                     Evidence, Prediction, prediction_frame)
 from sentinel.predict.twin import DigitalTwin
 from sentinel.telemetry.profiles import PROFILES
 
@@ -143,15 +144,23 @@ class PredictionEngine:
         return predictions
 
     def _enrich_with_twin(self, predictions: List[Prediction]) -> None:
-        """Attach a digital-twin forward projection to each thermal prediction:
-        how bad it gets (projected peak throttling) and for how long, from
-        rolling the forked engine ahead. No-op without a live engine."""
+        """Attach a digital-twin forward projection to each thermal AND
+        bottleneck prediction: how bad the target rack gets (projected peak
+        throttling) and for how long, from rolling the forked engine ahead.
+        Both alert types narrate the same forward-looking numbers, so the
+        operator card never has to fall back to a made-up ETA. One projection
+        per rack per frame (cached). No-op without a live engine."""
         if self._twin is None:
             return
+        proj_cache: Dict[str, object] = {}
         for p in predictions:
-            if p.type != THERMAL_THROTTLE:
+            if p.type not in (THERMAL_THROTTLE, SCHEDULING_BOTTLENECK):
                 continue
-            proj = self._twin.project(p.target["id"])
+            rack_id = p.target["id"]
+            proj = proj_cache.get(rack_id)
+            if proj is None:
+                proj = self._twin.project(rack_id)
+                proj_cache[rack_id] = proj
             p.evidence.append(Evidence(metric="projected_peak_throttling_gpus",
                                        value=float(proj.peak_throttling)))
             p.evidence.append(Evidence(metric="projected_peak_temp_c", value=proj.peak_temp_mean))
